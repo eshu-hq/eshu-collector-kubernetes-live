@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.10"
+          cache: true
+      - run: test -z "$(gofmt -l .)"
+        shell: bash
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test ./... -count=1
+      - run: go test ./collector/ -count=1 -race
+      - name: forbid replace directives
+        run: "! grep -E '^replace ' go.mod"
+        shell: bash
