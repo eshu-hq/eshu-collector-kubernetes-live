@@ -215,9 +215,6 @@ func TestExtractedParityMatchesFixturePack(t *testing.T) {
 	}
 
 	union := map[string]bool{}
-	for _, s := range byScope {
-		_ = s
-	}
 	for _, scope := range scopes {
 		for _, fact := range scope.Facts {
 			union[fact.FactKind] = true
@@ -568,11 +565,6 @@ func proofCoreFacts(t *testing.T, manifest conformance.Manifest) (*conformance.C
 			PayloadSchemaRef: family.Kind,
 		})
 	}
-	reserved := make([]string, 0, len(manifest.Spec.EmittedFacts))
-	for _, family := range manifest.Spec.EmittedFacts {
-		reserved = append(reserved, family.Kind)
-	}
-	_ = reserved
 	return &conformance.CoreFactContext{
 		ComponentID:      manifest.Metadata.ID,
 		ComponentVersion: manifest.Metadata.Version,

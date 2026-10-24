@@ -322,10 +322,6 @@ func normalizeActionList(values []string) []string {
 	return normalizeStrings(values, strings.ToLower)
 }
 
-func normalizePatternList(values []string) []string {
-	return normalizeStrings(values, nil)
-}
-
 func normalizeKeyList(values []string) []string {
 	return normalizeStrings(values, nil)
 }
