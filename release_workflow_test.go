@@ -60,9 +60,10 @@ func stepIndex(steps []workflowStep, match func(workflowStep) bool) int {
 }
 
 // contractProblems checks the steps that make a published image trustworthy:
-// the tag and manifest checks run before anything is pushed, one platform is
-// built, the signature is verified against a pinned identity and issuer, and
-// the provenance and SBOM attestations are generated and verified.
+// the tag, manifest, and conformance checks run before anything is pushed,
+// one platform is built, the signature is verified against a pinned identity
+// and issuer, and the provenance and SBOM attestations are generated and
+// verified.
 func contractProblems(steps []workflowStep) []string {
 	var problems []string
 	tagIdx := stepIndex(steps, func(s workflowStep) bool { return strings.Contains(s.Run, tagShapeCheck) })
@@ -75,6 +76,12 @@ func contractProblems(steps []workflowStep) []string {
 	if versionIdx < 0 {
 		problems = append(problems, "no step fails unless the tag matches manifest.yaml metadata.version")
 	}
+	conformanceIdx := stepIndex(steps, func(s workflowStep) bool {
+		return strings.Contains(s.Run, "go test") && strings.Contains(s.Run, "TestExtractedNonPodTemplatePayloadsPassConformance")
+	})
+	if conformanceIdx < 0 {
+		problems = append(problems, "no step runs the conformance proof (go test with TestExtractedNonPodTemplatePayloadsPassConformance) before publishing")
+	}
 	publishIdx := stepIndex(steps, func(s workflowStep) bool { return fmt.Sprint(s.With["push"]) == "true" })
 	if publishIdx < 0 {
 		problems = append(problems, "no step pushes the image")
@@ -84,6 +91,9 @@ func contractProblems(steps []workflowStep) []string {
 		}
 		if versionIdx >= 0 && versionIdx > publishIdx {
 			problems = append(problems, "the manifest version check runs after the image is pushed")
+		}
+		if conformanceIdx >= 0 && conformanceIdx > publishIdx {
+			problems = append(problems, "the conformance proof runs after the image is pushed")
 		}
 		if got := fmt.Sprint(steps[publishIdx].With["platforms"]); got != "linux/amd64" {
 			problems = append(problems, fmt.Sprintf("build platforms = %q, want exactly linux/amd64", got))
@@ -142,8 +152,8 @@ func releaseSteps(t *testing.T) []workflowStep {
 }
 
 // TestReleaseWorkflowKeepsThePublishingContract proves the release workflow
-// publishes one pinned platform only after the tag and manifest checks, and
-// verifies the signature and both attestations.
+// publishes one pinned platform only after the tag, manifest, and
+// conformance checks, and verifies the signature and both attestations.
 func TestReleaseWorkflowKeepsThePublishingContract(t *testing.T) {
 	t.Parallel()
 

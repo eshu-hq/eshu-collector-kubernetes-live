@@ -60,6 +60,16 @@ jobs:
             echo "tag '${TAG_NAME}' does not match manifest.yaml metadata.version 'v${version}'" >&2
             exit 1
           fi
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.26.10"
+          cache: true
+      - name: Require the conformance proof before publishing
+        run: |
+          go vet ./...
+          go test ./... -count=1
+          go test ./collector/ -count=1 -run 'TestExtractedNonPodTemplatePayloadsPassConformance|TestExtractedPodTemplateFullHarnessStillBlocked|TestExtractedMissingKindsPassConformance|TestExtractedPodTemplatePayloadsMatchPackSchemas|TestExtractedPosturePayloadsMatchPackSchemas'
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
       - name: Log in to the container registry

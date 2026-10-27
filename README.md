@@ -66,8 +66,8 @@ verbatim from core):
 
 ```go
 require (
-	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.2
-	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.2
+	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
+	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6
 )
 ```
 
@@ -83,10 +83,13 @@ What is proven: scope/kind/stable-key/attribute/payload parity per scope,
 duplicate-delivery stability, hostile inputs (partial freshness, in-band
 warnings, URI sanitization), the SDK Result boundary (state mapping, 1:1 fact
 mapping, fencing round-trip, credential-free wire URIs), full-harness
-conformance for `kubernetes_live.*` facts, pack-schema conformance for all 10
-emitted kinds, and ported unit tests with verbatim in-tree expectations for
-the paths the fixture pack cannot carry (RBAC, ingress edges, pool gating,
-canaries).
+conformance for `kubernetes_live.*` facts except `pod_template`
+(schema-only, see the SDK handoff below), full-harness conformance for the
+three declared kinds the fixture pack does not span (`k8s_rbac_role`,
+`k8s_rbac_binding`, `eks_pod_identity_association`, via synthetic fixtures),
+pack-schema conformance for all 13 emitted kinds, and ported unit tests with
+verbatim in-tree expectations for the paths the fixture pack cannot carry
+(RBAC, ingress edges, pool gating, canaries).
 
 What stays open for cutover (not this proof): the client-go adapter port
 (needs a live backend), claim-driven collection (mapped, not pinned), grant
@@ -97,10 +100,19 @@ the SDK payload-key allowlist handoff below, release artifact, and rehearsed
 rollback.
 
 SDK handoff: the published collector's fail-closed payload-key heuristic
-rejects legacy posture field names that are provably not credentials
-(`secret_ref_count`, `image_pull_secret_ref_count`, `automount_token`,
-`projected_service_account_token` — integer counts and closed-enum strings
-the cutover contract pins byte-exact). Tracked on
+rejects legacy field names that are provably not credentials. For posture:
+`secret_ref_count`, `image_pull_secret_ref_count`, `automount_token`,
+`projected_service_account_token` (integer counts and closed-enum strings
+the cutover contract pins byte-exact). For `kubernetes_live.pod_template`:
+`containers.env_from_secret`, a boolean that records only whether a
+container references secret-backed env (`collector/envelope.go`
+`ContainerSummary.EnvFromSecret`) and never carries a value. Renaming either
+set would break the byte-pinned cutover contract, so the fix belongs to the
+SDK. Tracked on
 [eshu-hq/eshu#8851](https://github.com/eshu-hq/eshu/issues/8851) as a
 `redactionSafePayloadKeys` allowlist request; the posture half of the proof
-runs schema-only until the SDK release carries it.
+runs schema-only until the SDK release carries it, and `pod_template` runs
+schema-only (`TestExtractedPodTemplatePayloadsMatchPackSchemas`) with the
+full-harness block pinned (`TestExtractedPodTemplateFullHarnessStillBlocked`)
+until the same allowlist covers `env_from_secret`. Do not push a `v0.1.0`
+tag until the SDK allowlist lands or the owner records a waiver.
