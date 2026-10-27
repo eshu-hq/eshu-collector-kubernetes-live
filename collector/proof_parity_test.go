@@ -479,9 +479,12 @@ func TestExtractedSDKResultBoundary(t *testing.T) {
 }
 
 // proofManifest declares this producer's emitted families for the
-// conformance harness: the 4 kubernetes_live kinds plus the 6 posture kinds
-// the fixture pack pins, all reported confidence, all trusted to this
-// producer's two collector kinds.
+// conformance harness: the 4 kubernetes_live kinds plus the 9 posture kinds
+// the manifest/contract/grants advertise (13 total), all reported
+// confidence, all trusted to this producer's two collector kinds. The
+// fixture pack pins 10 of them; the remaining three (rbac_role,
+// rbac_binding, pod_identity_association) are proven by synthetic fixtures
+// in TestExtractedMissingKindsPassConformance.
 func proofManifest() conformance.Manifest {
 	families := []conformance.FactFamily{
 		{Kind: KubernetesNamespaceFactKind, SchemaVersions: []string{KubernetesNamespaceSchemaVersion}, SourceConfidence: []string{"reported"}},
@@ -489,10 +492,13 @@ func proofManifest() conformance.Manifest {
 		{Kind: KubernetesRelationshipFactKind, SchemaVersions: []string{KubernetesRelationshipSchemaVersion}, SourceConfidence: []string{"reported"}},
 		{Kind: KubernetesWarningFactKind, SchemaVersions: []string{KubernetesWarningSchemaVersion}, SourceConfidence: []string{"reported"}},
 		{Kind: KubernetesServiceAccountFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
-		{Kind: KubernetesServiceAccountTokenPostureFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
+		{Kind: KubernetesRBACRoleFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
+		{Kind: KubernetesRBACBindingFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
 		{Kind: KubernetesWorkloadIdentityUseFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
-		{Kind: EKSIRSAAnnotationFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
 		{Kind: KubernetesGCPWorkloadIdentityBindingFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
+		{Kind: KubernetesServiceAccountTokenPostureFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
+		{Kind: EKSIRSAAnnotationFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
+		{Kind: EKSPodIdentityAssociationFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
 		{Kind: SecretsIAMCoverageWarningFactKind, SchemaVersions: []string{SecretsIAMSchemaVersionV1}, SourceConfidence: []string{"reported"}},
 	}
 	return conformance.Manifest{
@@ -635,16 +641,64 @@ func proofK8sManifest() (conformance.Manifest, *conformance.CoreFactContext, map
 	return manifest, coreFacts, schemas, reserved
 }
 
-// TestExtractedPayloadsPassConformance proves the kubernetes_live.* facts the
-// extracted producer emits satisfy the full SDK publication contract: the
-// conformance harness (manifest, trusted coverage, payload schemas,
-// claim/ref agreement, credential-free URIs) passes in the producer's own
-// module against the producer's own output.
-func TestExtractedPayloadsPassConformance(t *testing.T) {
+// proofK8sFullHarnessManifest is the full-harness half of the proof: the
+// kubernetes_live.* families except pod_template. Pod_template travels a
+// schema-only path (see TestExtractedPodTemplatePayloadsMatchPackSchemas):
+// the rc.3 payload-key heuristic flags its legacy env_from_secret bool, and
+// the fix belongs to the SDK allowlist (eshu-hq/eshu#8851). Verdict: arbiter,
+// 2026-10-27.
+func proofK8sFullHarnessManifest() (conformance.Manifest, *conformance.CoreFactContext, map[string]json.RawMessage, []string) {
+	manifest, _, _, _ := proofK8sManifest()
+	manifest.Spec.EmittedFacts = nil
+	for _, family := range proofManifest().Spec.EmittedFacts {
+		if strings.HasPrefix(family.Kind, "kubernetes_live.") && family.Kind != KubernetesPodTemplateFactKind {
+			manifest.Spec.EmittedFacts = append(manifest.Spec.EmittedFacts, family)
+		}
+	}
+	coreFacts, schemas := proofCoreFacts(nil, manifest)
+	reserved := make([]string, 0, len(manifest.Spec.EmittedFacts))
+	for _, family := range manifest.Spec.EmittedFacts {
+		reserved = append(reserved, family.Kind)
+	}
+	return manifest, coreFacts, schemas, reserved
+}
+
+// withoutPodTemplateFacts returns the fixtures with pod_template facts
+// removed, for the full-harness half of the proof (see
+// TestExtractedPodTemplatePayloadsMatchPackSchemas for why pod_template
+// travels a schema-only path until the SDK allowlist grows).
+func withoutPodTemplateFacts(fixtures []sdkcollector.Result) []sdkcollector.Result {
+	out := make([]sdkcollector.Result, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		kept := fixture
+		kept.Facts = nil
+		for _, fact := range fixture.Facts {
+			if fact.Kind != KubernetesPodTemplateFactKind {
+				kept.Facts = append(kept.Facts, fact)
+			}
+		}
+		out = append(out, kept)
+	}
+	return out
+}
+
+// TestExtractedNonPodTemplatePayloadsPassConformance proves the
+// kubernetes_live.* facts except pod_template satisfy the full SDK
+// publication contract: the conformance harness (manifest, trusted coverage,
+// payload schemas, claim/ref agreement, credential-free URIs) passes in the
+// producer's own module against the producer's own output. Pod_template is
+// EXCLUDED here and travels a schema-only path (see
+// TestExtractedPodTemplatePayloadsMatchPackSchemas and
+// TestExtractedPodTemplateFullHarnessStillBlocked): the rc.3 payload-key
+// heuristic flags its legacy containers.env_from_secret bool, and the fix
+// belongs to the SDK allowlist (eshu-hq/eshu#8851). The name states the
+// exclusion so no reader mistakes this green for pod_template publication
+// proof.
+func TestExtractedNonPodTemplatePayloadsPassConformance(t *testing.T) {
 	t.Parallel()
 
-	manifest, coreFacts, schemas, reserved := proofK8sManifest()
-	fixtures := proofK8sOnly(proofSnapshots(t))
+	manifest, coreFacts, schemas, reserved := proofK8sFullHarnessManifest()
+	fixtures := withoutPodTemplateFacts(proofK8sOnly(proofSnapshots(t)))
 
 	report := conformance.Run(conformance.Request{
 		Manifest:          manifest,
@@ -662,6 +716,100 @@ func TestExtractedPayloadsPassConformance(t *testing.T) {
 	}
 	if report.Summary.FactCount == 0 {
 		t.Fatal("FactCount = 0, want every emitted fact validated")
+	}
+}
+
+// TestExtractedPodTemplateFullHarnessStillBlocked pins the P1 exclusion: the
+// full publication harness REJECTS pod_template facts on both fixtures with
+// BlocksPublication:true for containers.env_from_secret. This test is the
+// honest counterpart to the schema-only pod_template proof above — it fails
+// if anyone re-adds pod_template to the full-harness manifest/fixtures while
+// the SDK allowlist is still missing, and it must be deleted (with the
+// rename above reverted to cover pod_template) when the SDK release carries
+// the allowlist and the full harness goes green.
+func TestExtractedPodTemplateFullHarnessStillBlocked(t *testing.T) {
+	t.Parallel()
+
+	manifest, coreFacts, schemas, reserved := proofK8sManifest()
+	fixtures := proofK8sOnly(proofSnapshots(t))
+
+	seenPodTemplate := 0
+	for _, fixture := range fixtures {
+		for _, fact := range fixture.Facts {
+			if fact.Kind == KubernetesPodTemplateFactKind {
+				seenPodTemplate++
+			}
+		}
+	}
+	if seenPodTemplate == 0 {
+		t.Fatal("fixtures carry no pod_template fact; the block pin is vacuous")
+	}
+
+	report := conformance.Run(conformance.Request{
+		Manifest:          manifest,
+		Fixtures:          fixtures,
+		Mode:              conformance.ModeFixture,
+		ReservedFactKinds: reserved,
+		CoreFacts:         coreFacts,
+		PayloadSchemas:    schemas,
+	})
+	if report.OK() {
+		t.Fatal("full harness passed with pod_template included; the SDK allowlist has landed — " +
+			"delete this pin, fold pod_template back into TestExtractedNonPodTemplatePayloadsPassConformance, and rename it")
+	}
+	blocked := 0
+	for _, finding := range report.Findings {
+		if finding.Code == conformance.FindingFixtureContractFailed && finding.BlocksPublication &&
+			strings.Contains(finding.Message, "containers.env_from_secret") {
+			blocked++
+		}
+	}
+	if blocked != 2 {
+		t.Fatalf("blocked pod_template findings = %d, want 2 (one per fixture); findings = %#v", blocked, report.Findings)
+	}
+}
+
+// TestExtractedPodTemplatePayloadsMatchPackSchemas proves the pod_template
+// facts the extracted producer emits satisfy the JSON Schema shapes the
+// pinned fixture pack ships — the same shapes the target reducer release
+// consumes.
+//
+// It runs the schema-only check (conformance.ValidatePayloadSchemas), not the
+// full publication harness, for one SDK-owned reason: the published
+// collector's fail-closed payload-key heuristic
+// (collector/validation.go validatePayloadKeys) flags the legacy
+// containers.env_from_secret field, a boolean that records only whether a
+// container references secret-backed env (collector/envelope.go
+// ContainerSummary.EnvFromSecret) and never carries a value. Renaming the
+// field would break the byte-pinned cutover contract, so the fix belongs to
+// the SDK (an allowlist entry alongside eshu-hq/eshu#8851): this proof
+// records the handoff and pins everything else green. The full-harness
+// pod_template half goes green with the SDK release that carries the
+// allowlist. Verdict: arbiter, 2026-10-27.
+func TestExtractedPodTemplatePayloadsMatchPackSchemas(t *testing.T) {
+	t.Parallel()
+
+	_, _, schemas, _ := proofK8sManifest()
+	fixtures := proofK8sOnly(proofSnapshots(t))
+	seen := 0
+	for i, fixture := range fixtures {
+		kept := fixture
+		kept.Facts = nil
+		for _, fact := range fixture.Facts {
+			if fact.Kind == KubernetesPodTemplateFactKind {
+				kept.Facts = append(kept.Facts, fact)
+			}
+		}
+		if len(kept.Facts) == 0 {
+			t.Fatalf("fixture[%d] carries no pod_template fact", i)
+		}
+		seen += len(kept.Facts)
+		if err := conformance.ValidatePayloadSchemas(schemas, kept); err != nil {
+			t.Fatalf("fixture[%d] payload schema: %v", i, err)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no pod_template fact validated")
 	}
 }
 
@@ -691,5 +839,102 @@ func TestExtractedPosturePayloadsMatchPackSchemas(t *testing.T) {
 		if err := conformance.ValidatePayloadSchemas(schemas, fixture); err != nil {
 			t.Fatalf("fixture[%d] payload schema: %v", i, err)
 		}
+	}
+}
+
+// missingKindsFixture builds one SDK result carrying the three declared
+// kinds the parity pack does not span (rbac_role, rbac_binding,
+// pod_identity_association), proving the constructors the ported RBAC unit
+// tests exercise emit payloads the published schemas and the full
+// publication harness accept.
+func missingKindsFixture(t *testing.T) sdkcollector.Result {
+	t.Helper()
+
+	ctx := KubernetesContext{
+		ClusterID:           "proof-missing-kinds",
+		ScopeID:             "kubernetes_live:proof-missing-kinds",
+		GenerationID:        "gen-missing-kinds-1",
+		CollectorInstanceID: "k8s-proof-1",
+		FencingToken:        11,
+		ObservedAt:          proofObservedAt,
+		SourceURI:           "https://api.proof-missing-kinds.example.test",
+	}
+	roleEnv, err := NewKubernetesRBACRoleEnvelope(KubernetesRBACRoleObservation{
+		Context: ctx, RoleKind: RBACRoleKindRole, Namespace: "payments",
+		Name: "secret-reader", UID: "uid-role-missing-1",
+		Rules: []KubernetesRBACRuleSummary{{
+			Verbs: []string{"get", "list"}, APIGroups: []string{""},
+			Resources:         []string{"secrets"},
+			ResourceNameCount: 1, ResourceNamesPresent: true,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewKubernetesRBACRoleEnvelope() error = %v", err)
+	}
+	bindEnv, err := NewKubernetesRBACBindingEnvelope(KubernetesRBACBindingObservation{
+		Context: ctx, BindingKind: BindingKindRoleBinding, Namespace: "payments",
+		Name: "read-secrets", UID: "uid-binding-missing-1",
+		RoleRefKind: RBACRoleKindRole, RoleRefName: "secret-reader",
+		Subjects: []KubernetesRBACSubject{{Kind: "ServiceAccount", Namespace: "payments", Name: "checkout-sa"}},
+	})
+	if err != nil {
+		t.Fatalf("NewKubernetesRBACBindingEnvelope() error = %v", err)
+	}
+	assocEnv, err := NewEKSPodIdentityAssociationEnvelope(EKSPodIdentityAssociationObservation{
+		Context: ctx, AssociationID: "a-missing-1", ClusterName: "proof-missing-kinds",
+		Namespace: "payments", ServiceAccountName: "checkout-sa",
+		RoleARN: "arn:aws:iam::123456789012:role/proof-missing",
+	})
+	if err != nil {
+		t.Fatalf("NewEKSPodIdentityAssociationEnvelope() error = %v", err)
+	}
+	collected := CollectedSnapshot{
+		Scope:      ScopeInfo{ScopeID: ctx.ScopeID, ScopeKind: "cluster"},
+		Generation: GenerationInfo{GenerationID: ctx.GenerationID, ObservedAt: ctx.ObservedAt},
+		Envelopes:  []Envelope{roleEnv, bindEnv, assocEnv},
+	}
+	claim := proofClaim(collected.Scope, collected.Generation, ctx.FencingToken)
+	result, err := ToSDKResult(claim, collected)
+	if err != nil {
+		t.Fatalf("ToSDKResult() error = %v", err)
+	}
+	if len(result.Facts) != 3 {
+		t.Fatalf("Facts = %d, want 3 (one per missing kind)", len(result.Facts))
+	}
+	return result
+}
+
+// TestExtractedMissingKindsPassConformance proves the three declared kinds
+// the parity pack does not span satisfy the full SDK publication contract:
+// the harness (manifest, trusted coverage, payload schemas, claim/ref
+// agreement, credential-free URIs) passes against synthetic fixtures built
+// from the same constructors production collection uses.
+func TestExtractedMissingKindsPassConformance(t *testing.T) {
+	t.Parallel()
+
+	manifest := proofManifest()
+	coreFacts, schemas := proofCoreFacts(t, manifest)
+	reserved := make([]string, 0, len(manifest.Spec.EmittedFacts))
+	for _, family := range manifest.Spec.EmittedFacts {
+		reserved = append(reserved, family.Kind)
+	}
+	fixture := missingKindsFixture(t)
+	if err := conformance.ValidatePayloadSchemas(schemas, fixture); err != nil {
+		t.Fatalf("missing-kinds payload schema: %v", err)
+	}
+
+	report := conformance.Run(conformance.Request{
+		Manifest:          manifest,
+		Fixtures:          []sdkcollector.Result{fixture},
+		Mode:              conformance.ModeFixture,
+		ReservedFactKinds: reserved,
+		CoreFacts:         coreFacts,
+		PayloadSchemas:    schemas,
+	})
+	if !report.OK() {
+		t.Fatalf("conformance findings = %#v, want passed", report.Findings)
+	}
+	if report.Summary.FactCount != 3 {
+		t.Fatalf("FactCount = %d, want 3", report.Summary.FactCount)
 	}
 }

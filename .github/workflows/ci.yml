@@ -23,3 +23,5 @@ jobs:
       - name: forbid replace directives
         run: "! grep -E '^replace ' go.mod"
         shell: bash
+      - name: build the release image
+        run: docker build -f ./Dockerfile -t eshu-collector-kubernetes-live:ci .
