@@ -1,0 +1,100 @@
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.kubernetes-live
+  name: Kubernetes live collector
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - kubernetes_live
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-kubernetes-live@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  emittedFacts:
+    - kind: kubernetes_live.pod_template
+      payloadSchemaRef: kubernetes_live.pod_template
+      schemaVersions:
+        - 1.3.0
+      sourceConfidence:
+        - reported
+    - kind: kubernetes_live.relationship
+      payloadSchemaRef: kubernetes_live.relationship
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: kubernetes_live.warning
+      payloadSchemaRef: kubernetes_live.warning
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: kubernetes_live.namespace
+      payloadSchemaRef: kubernetes_live.namespace
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: k8s_service_account
+      payloadSchemaRef: k8s_service_account
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: k8s_rbac_role
+      payloadSchemaRef: k8s_rbac_role
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: k8s_rbac_binding
+      payloadSchemaRef: k8s_rbac_binding
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: k8s_workload_identity_use
+      payloadSchemaRef: k8s_workload_identity_use
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: k8s_gcp_workload_identity_binding
+      payloadSchemaRef: k8s_gcp_workload_identity_binding
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: k8s_service_account_token_posture
+      payloadSchemaRef: k8s_service_account_token_posture
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: eks_irsa_annotation
+      payloadSchemaRef: eks_irsa_annotation
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: eks_pod_identity_association
+      payloadSchemaRef: eks_pod_identity_association
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: secrets_iam_coverage_warning
+      payloadSchemaRef: secrets_iam_coverage_warning
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+  telemetry:
+    # Declared only: the collector emits no metric under this prefix.
+    metricsPrefix: eshu_dp_kubernetes_live_collector_

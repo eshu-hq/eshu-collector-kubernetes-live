@@ -9,6 +9,54 @@ Extraction tracking: [eshu-hq/eshu#8859](https://github.com/eshu-hq/eshu/issues/
 The in-tree extraction census, producer-grant draft, and parity proofs live
 in the core repository until the cutover rehearsal lands them here.
 
+## Serving shim (v0.1.0)
+
+The root `collector` package (shim) serves one claim per process through the
+Eshu component-extension host process runner:
+
+```bash
+go build -o /tmp/collector ./cmd/collector
+echo "$REQUEST" | /tmp/collector --sdk-stdio   # one request in, one result out
+/tmp/collector seed --dest /component          # install binary + manifest
+```
+
+`collector seed --dest DIR [--image-ref REF@sha256:<digest>]` writes
+`DIR/collector` (this binary, mode 0755) and `DIR/manifest.yaml` (the embedded
+manifest, mode 0644). `--image-ref`, or `COLLECTOR_IMAGE_REF` when the flag is
+absent, stamps the digest-pinned image the operator deployed into the
+manifest's artifact entry. The Dockerfile installs the binary at
+`/usr/local/bin/collector`, which is the path the IaC seed step calls:
+`ENTRYPOINT ["/usr/local/bin/collector"]`, `CMD ["--sdk-stdio"]`.
+
+The component-extension host forwards the activation config subtree verbatim
+as the SDK request `Config`, so a request may carry the standard host envelope
+next to the targets: `{"targets":[...], "limits":{...},
+"host_github_app_token":{...}}`. The shim maps the top-level `limits` object
+in `snake_case` or `camelCase` (`claimTimeoutSeconds`, `maxPayloadBytes`,
+`maxRecordsPerClaim`, `maxResultBytes`) onto the claim budgets — a target's
+own bounds win where set, the envelope fills the gaps, then the handler
+bounds, then the built-in defaults — and accepts and ignores `host_*` keys
+(the host-minted per-claim credentials this satellite never reads). Any other
+top-level key still fails closed without naming the key.
+
+Config contract: every target needs a `cluster_id` (the durable scope anchor;
+`ClusterScopeID` derives the scope id from it alone) and a `source_uri` (the
+host validator requires one on every fact). A scan that cannot reach a cluster
+reports terminal `collection_failed`, never `invalid_config`: reaching that
+class proves the envelope decoded and the scope matched. The v0.1.0 image
+ships no live cluster backend (the client-go adapter port needs a live
+backend); `Handler.ClientFactory == nil` reports terminal `collection_failed`
+so the missing backend is explicit, not a silent empty result.
+
+`manifest.yaml` (`metadata.version: 0.1.0`) declares all 13 emitted kinds
+with their schema versions and the placeholder artifact digest; deployments
+stamp the pulled digest with `collector seed --image-ref`. `config.example.yaml`
+is the cutover-shaped activation; `grant.example.json` is the producer-grant
+request an operator submits (one grant per declared kind, bound to this
+producer and version). Releasing: push a `v*` tag matching
+`manifest.yaml metadata.version` and `.github/workflows/release.yml` builds,
+signs, and attests the image.
+
 ## Extracted-path proof (`collector/`)
 
 This branch ports the in-tree emission core onto the published SDK contracts

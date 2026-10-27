@@ -1,0 +1,145 @@
+[
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "kubernetes_live.pod_template",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.3.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "kubernetes_live.relationship",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "kubernetes_live.warning",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "kubernetes_live.namespace",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "k8s_service_account",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "k8s_rbac_role",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "k8s_rbac_binding",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "k8s_workload_identity_use",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "k8s_gcp_workload_identity_binding",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "k8s_service_account_token_posture",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "eks_irsa_annotation",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "eks_pod_identity_association",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "secrets_iam_coverage_warning",
+    "producer_id": "dev.eshu.collector.kubernetes-live",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "kubernetes_live",
+    "version": "0.1.0"
+  }
+]

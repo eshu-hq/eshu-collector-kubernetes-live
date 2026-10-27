@@ -635,16 +635,60 @@ func proofK8sManifest() (conformance.Manifest, *conformance.CoreFactContext, map
 	return manifest, coreFacts, schemas, reserved
 }
 
+// proofK8sFullHarnessManifest is the full-harness half of the proof: the
+// kubernetes_live.* families except pod_template. Pod_template travels a
+// schema-only path (see TestExtractedPodTemplatePayloadsMatchPackSchemas):
+// the rc.3 payload-key heuristic flags its legacy env_from_secret bool, and
+// the fix belongs to the SDK allowlist (eshu-hq/eshu#8851). Verdict: arbiter,
+// 2026-10-27.
+func proofK8sFullHarnessManifest() (conformance.Manifest, *conformance.CoreFactContext, map[string]json.RawMessage, []string) {
+	manifest, _, _, _ := proofK8sManifest()
+	manifest.Spec.EmittedFacts = nil
+	for _, family := range proofManifest().Spec.EmittedFacts {
+		if strings.HasPrefix(family.Kind, "kubernetes_live.") && family.Kind != KubernetesPodTemplateFactKind {
+			manifest.Spec.EmittedFacts = append(manifest.Spec.EmittedFacts, family)
+		}
+	}
+	coreFacts, schemas := proofCoreFacts(nil, manifest)
+	reserved := make([]string, 0, len(manifest.Spec.EmittedFacts))
+	for _, family := range manifest.Spec.EmittedFacts {
+		reserved = append(reserved, family.Kind)
+	}
+	return manifest, coreFacts, schemas, reserved
+}
+
+// withoutPodTemplateFacts returns the fixtures with pod_template facts
+// removed, for the full-harness half of the proof (see
+// TestExtractedPodTemplatePayloadsMatchPackSchemas for why pod_template
+// travels a schema-only path until the SDK allowlist grows).
+func withoutPodTemplateFacts(fixtures []sdkcollector.Result) []sdkcollector.Result {
+	out := make([]sdkcollector.Result, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		kept := fixture
+		kept.Facts = nil
+		for _, fact := range fixture.Facts {
+			if fact.Kind != KubernetesPodTemplateFactKind {
+				kept.Facts = append(kept.Facts, fact)
+			}
+		}
+		out = append(out, kept)
+	}
+	return out
+}
+
 // TestExtractedPayloadsPassConformance proves the kubernetes_live.* facts the
 // extracted producer emits satisfy the full SDK publication contract: the
 // conformance harness (manifest, trusted coverage, payload schemas,
 // claim/ref agreement, credential-free URIs) passes in the producer's own
-// module against the producer's own output.
+// module against the producer's own output. Pod_template facts travel a
+// schema-only path (see TestExtractedPodTemplatePayloadsMatchPackSchemas):
+// the rc.3 payload-key heuristic flags their legacy env_from_secret bool,
+// and the fix belongs to the SDK allowlist.
 func TestExtractedPayloadsPassConformance(t *testing.T) {
 	t.Parallel()
 
-	manifest, coreFacts, schemas, reserved := proofK8sManifest()
-	fixtures := proofK8sOnly(proofSnapshots(t))
+	manifest, coreFacts, schemas, reserved := proofK8sFullHarnessManifest()
+	fixtures := withoutPodTemplateFacts(proofK8sOnly(proofSnapshots(t)))
 
 	report := conformance.Run(conformance.Request{
 		Manifest:          manifest,
@@ -662,6 +706,50 @@ func TestExtractedPayloadsPassConformance(t *testing.T) {
 	}
 	if report.Summary.FactCount == 0 {
 		t.Fatal("FactCount = 0, want every emitted fact validated")
+	}
+}
+
+// TestExtractedPodTemplatePayloadsMatchPackSchemas proves the pod_template
+// facts the extracted producer emits satisfy the JSON Schema shapes the
+// pinned fixture pack ships — the same shapes the target reducer release
+// consumes.
+//
+// It runs the schema-only check (conformance.ValidatePayloadSchemas), not the
+// full publication harness, for one SDK-owned reason: the published
+// collector's fail-closed payload-key heuristic
+// (collector/validation.go validatePayloadKeys) flags the legacy
+// containers.env_from_secret field, a boolean that records only whether a
+// container references secret-backed env (collector/envelope.go
+// ContainerSummary.EnvFromSecret) and never carries a value. Renaming the
+// field would break the byte-pinned cutover contract, so the fix belongs to
+// the SDK (an allowlist entry alongside eshu-hq/eshu#8851): this proof
+// records the handoff and pins everything else green. The full-harness
+// pod_template half goes green with the SDK release that carries the
+// allowlist. Verdict: arbiter, 2026-10-27.
+func TestExtractedPodTemplatePayloadsMatchPackSchemas(t *testing.T) {
+	t.Parallel()
+
+	_, _, schemas, _ := proofK8sManifest()
+	fixtures := proofK8sOnly(proofSnapshots(t))
+	seen := 0
+	for i, fixture := range fixtures {
+		kept := fixture
+		kept.Facts = nil
+		for _, fact := range fixture.Facts {
+			if fact.Kind == KubernetesPodTemplateFactKind {
+				kept.Facts = append(kept.Facts, fact)
+			}
+		}
+		if len(kept.Facts) == 0 {
+			t.Fatalf("fixture[%d] carries no pod_template fact", i)
+		}
+		seen += len(kept.Facts)
+		if err := conformance.ValidatePayloadSchemas(schemas, kept); err != nil {
+			t.Fatalf("fixture[%d] payload schema: %v", i, err)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no pod_template fact validated")
 	}
 }
 

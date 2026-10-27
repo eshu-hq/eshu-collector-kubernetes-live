@@ -7,6 +7,7 @@ require (
 	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require github.com/cespare/xxhash/v2 v2.3.0 // indirect
