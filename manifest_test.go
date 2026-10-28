@@ -161,8 +161,8 @@ func TestManifestReleaseProvenance(t *testing.T) {
 	if strings.TrimSpace(manifest.Metadata.Version) == "" {
 		t.Fatal("manifest missing metadata version")
 	}
-	if manifest.Metadata.Version != "0.1.1" {
-		t.Fatalf("metadata.version = %q, want 0.1.1", manifest.Metadata.Version)
+	if manifest.Metadata.Version != "0.1.2" {
+		t.Fatalf("metadata.version = %q, want 0.1.2", manifest.Metadata.Version)
 	}
 	if len(manifest.Spec.Artifacts) == 0 {
 		t.Fatal("manifest declares no artifacts")

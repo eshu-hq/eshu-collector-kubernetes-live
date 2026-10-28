@@ -9,7 +9,7 @@ Extraction tracking: [eshu-hq/eshu#8859](https://github.com/eshu-hq/eshu/issues/
 The in-tree extraction census, producer-grant draft, and parity proofs live
 in the core repository until the cutover rehearsal lands them here.
 
-## Serving (v0.1.1)
+## Serving (v0.1.2)
 
 The root `collector` package (shim) serves one claim per process through the
 Eshu component-extension host process runner:
@@ -43,7 +43,7 @@ Config contract: every target needs a `cluster_id` (the durable scope anchor;
 `ClusterScopeID` derives the scope id from it alone) and a `source_uri` (the
 host validator requires one on every fact). A scan that cannot reach a cluster
 reports retryable `collection_failed`, never `invalid_config`: reaching that
-class proves the envelope decoded and the scope matched. The v0.1.1 image
+class proves the envelope decoded and the scope matched. The v0.1.2 image
 ships the live cluster backend (`collector/clientgo` behind the
 `ClientFactory` seam): the in-cluster service account when the pod runs under
 it, an explicit `KUBECONFIG` file for out-of-cluster collection, and a bounded
@@ -53,7 +53,7 @@ result — the binary always wires `clientgo.DefaultFactory`, so only a
 directly built `Handler` can hit that shape. Cluster auth resolves from the
 process environment alone; no secret travels in the activation config.
 
-`manifest.yaml` (`metadata.version: 0.1.1`) declares all 13 emitted kinds
+`manifest.yaml` (`metadata.version: 0.1.2`) declares all 13 emitted kinds
 with their schema versions and the placeholder artifact digest; deployments
 stamp the pulled digest with `collector seed --image-ref`. `config.example.yaml`
 is the cutover-shaped activation; `grant.example.json` is the producer-grant
