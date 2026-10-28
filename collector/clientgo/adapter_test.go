@@ -29,6 +29,25 @@ func TestAdapterImplementsClientInterface(t *testing.T) {
 	var _ collector.Client = NewAdapter(fake.NewClientset())
 }
 
+// TestPingReadOnlyProvesListAccess proves the preflight read check passes on
+// a reachable API and wraps a denial instead of leaking it raw.
+func TestPingReadOnlyProvesListAccess(t *testing.T) {
+	t.Parallel()
+
+	if err := NewAdapter(fake.NewClientset()).PingReadOnly(context.Background()); err != nil {
+		t.Fatalf("PingReadOnly() error = %v", err)
+	}
+	denied := fake.NewClientset()
+	denied.PrependReactor("list", "namespaces", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(
+			schema.GroupResource{Group: "", Resource: "namespaces"}, "", errors.New("denied"),
+		)
+	})
+	if err := NewAdapter(denied).PingReadOnly(context.Background()); err == nil {
+		t.Fatal("PingReadOnly(denied) error = nil, want the denial wrapped")
+	}
+}
+
 // TestAdapterMapsDeploymentMetadataOnly proves the core redaction contract on
 // the hottest path: image refs and env var NAMES cross the seam, env VALUES
 // never do, and only the identity-binding annotations survive.
@@ -269,5 +288,69 @@ func TestAuthConfigRequiresKubeconfigPath(t *testing.T) {
 	}
 	if _, err := (AuthConfig{Mode: "nope"}).RESTConfig(); err == nil {
 		t.Fatal("RESTConfig() error = nil for an unknown auth mode")
+	}
+}
+
+// TestAdapterListFailuresSurface proves every list family returns its backend
+// error instead of an empty success: a denied-then-failing API must be loud
+// everywhere, not just on the families the happy-path tests pin.
+func TestAdapterListFailuresSurface(t *testing.T) {
+	t.Parallel()
+
+	boom := errors.New("backend down")
+	client := fake.NewClientset()
+	client.PrependReactor("list", "*", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, boom
+	})
+	adapter := NewAdapter(client)
+	ctx := context.Background()
+	calls := map[string]func() error{
+		"namespaces":          func() error { _, err := adapter.ListNamespaces(ctx); return err },
+		"pods":                func() error { _, err := adapter.ListPods(ctx); return err },
+		"deployments":         func() error { _, err := adapter.ListDeployments(ctx); return err },
+		"replicasets":         func() error { _, err := adapter.ListReplicaSets(ctx); return err },
+		"statefulsets":        func() error { _, err := adapter.ListStatefulSets(ctx); return err },
+		"daemonsets":          func() error { _, err := adapter.ListDaemonSets(ctx); return err },
+		"jobs":                func() error { _, err := adapter.ListJobs(ctx); return err },
+		"cronjobs":            func() error { _, err := adapter.ListCronJobs(ctx); return err },
+		"services":            func() error { _, err := adapter.ListServices(ctx); return err },
+		"ingresses":           func() error { _, err := adapter.ListIngresses(ctx); return err },
+		"serviceaccounts":     func() error { _, err := adapter.ListServiceAccounts(ctx); return err },
+		"roles":               func() error { _, err := adapter.ListRoles(ctx); return err },
+		"clusterroles":        func() error { _, err := adapter.ListClusterRoles(ctx); return err },
+		"rolebindings":        func() error { _, err := adapter.ListRoleBindings(ctx); return err },
+		"clusterrolebindings": func() error { _, err := adapter.ListClusterRoleBindings(ctx); return err },
+	}
+	for family, call := range calls {
+		if err := call(); err == nil {
+			t.Errorf("%s list error = nil, want the backend failure", family)
+		}
+	}
+}
+
+// TestPaginateDegradesMidStream proves a failure after successful pages
+// degrades to partial instead of aborting, while a first-page failure stays
+// hard (the forbidden first page is covered by
+// TestAdapterForbiddenListIsPartial).
+func TestPaginateDegradesMidStream(t *testing.T) {
+	t.Parallel()
+
+	adapter := NewAdapter(fake.NewClientset())
+	ctx := context.Background()
+	pages := 0
+	partial, reason, err := adapter.paginate(ctx, func(metav1.ListOptions) (string, error) {
+		pages++
+		if pages == 1 {
+			return "token", nil
+		}
+		return "", errors.New("mid-stream failure")
+	})
+	if err != nil || !partial || reason != collector.WarningPartialList {
+		t.Fatalf("mid-stream = (%v, %q, %v), want partial with a warning", partial, reason, err)
+	}
+	if _, _, err := adapter.paginate(ctx, func(metav1.ListOptions) (string, error) {
+		return "", errors.New("first-page failure")
+	}); err == nil {
+		t.Fatal("first-page failure error = nil, want it hard")
 	}
 }

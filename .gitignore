@@ -1,0 +1,5 @@
+# Local lane outputs, never committed. CI uploads the coverprofile as an
+# artifact instead.
+coverage.out
+gosec.sarif
+govuln.txt

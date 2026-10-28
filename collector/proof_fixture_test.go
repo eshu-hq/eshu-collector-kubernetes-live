@@ -19,6 +19,7 @@ import (
 type fakeClient struct {
 	pingErr             error
 	namespaces          ListResult[ObjectMeta]
+	namespacesErr       error
 	pods                ListResult[WorkloadObject]
 	deployments         ListResult[WorkloadObject]
 	replicasets         ListResult[WorkloadObject]
@@ -37,6 +38,9 @@ type fakeClient struct {
 
 func (f *fakeClient) PingReadOnly(context.Context) error { return f.pingErr }
 func (f *fakeClient) ListNamespaces(context.Context) (ListResult[ObjectMeta], error) {
+	if f.namespacesErr != nil {
+		return ListResult[ObjectMeta]{}, f.namespacesErr
+	}
 	return f.namespaces, nil
 }
 

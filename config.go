@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -70,10 +69,7 @@ const hostKeyPrefix = "host_"
 // defaults. Every target requires a scope match, including a lone target, so
 // a mismatched lone target is rejected at config decode instead of being
 // scanned.
-func resolveTarget(raw map[string]any, scopeID string, getenv func(string) string) (corecollector.ClusterTarget, ResourceUse, error) {
-	if getenv == nil {
-		getenv = os.Getenv
-	}
+func resolveTarget(raw map[string]any, scopeID string) (corecollector.ClusterTarget, ResourceUse, error) {
 	targets, topLimits, err := decodeTargets(raw)
 	if err != nil {
 		return corecollector.ClusterTarget{}, ResourceUse{}, err

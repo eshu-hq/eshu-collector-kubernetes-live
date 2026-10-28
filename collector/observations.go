@@ -256,15 +256,7 @@ func secretsRBACRules(rules []RBACRuleSummary) []KubernetesRBACRuleSummary {
 	}
 	output := make([]KubernetesRBACRuleSummary, 0, len(rules))
 	for _, rule := range rules {
-		output = append(output, KubernetesRBACRuleSummary{
-			Verbs:                  rule.Verbs,
-			APIGroups:              rule.APIGroups,
-			Resources:              rule.Resources,
-			ResourceNameCount:      rule.ResourceNameCount,
-			ResourceNamesPresent:   rule.ResourceNamesPresent,
-			NonResourceURLCount:    rule.NonResourceURLCount,
-			NonResourceURLsPresent: rule.NonResourceURLsPresent,
-		})
+		output = append(output, KubernetesRBACRuleSummary(rule))
 	}
 	return output
 }
@@ -275,12 +267,7 @@ func secretsRBACSubjects(subjects []RBACSubject) []KubernetesRBACSubject {
 	}
 	output := make([]KubernetesRBACSubject, 0, len(subjects))
 	for _, subject := range subjects {
-		output = append(output, KubernetesRBACSubject{
-			Kind:      subject.Kind,
-			APIGroup:  subject.APIGroup,
-			Namespace: subject.Namespace,
-			Name:      subject.Name,
-		})
+		output = append(output, KubernetesRBACSubject(subject))
 	}
 	return output
 }
