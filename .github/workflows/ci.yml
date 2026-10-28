@@ -179,7 +179,7 @@ jobs:
           echo "total=$total floor=$COVERAGE_FLOOR"
           awk -v t="$total" -v f="$COVERAGE_FLOOR" 'BEGIN { if (t + 0 < f + 0) { print "FAIL: coverage below floor"; exit 1 } }'
       - name: Upload coverprofile
-        uses: actions/upload-artifact@ea165f8d65b6e75b540e4489e45b6eb9f30b0b0df # v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: coverage
           path: coverage.out
@@ -291,7 +291,7 @@ jobs:
         with:
           args: -fmt sarif -out gosec.sarif ./...
       - name: Upload SARIF to the Security tab
-        uses: github/codeql-action/upload-sarif@793b778da9c9275a0f276522b27cb5fc14bba279 # v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: gosec.sarif
         continue-on-error: true
