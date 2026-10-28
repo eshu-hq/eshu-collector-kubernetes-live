@@ -45,8 +45,9 @@ concurrency:
 
 env:
   # Minimum total statement coverage percent. Starts at the measured
-  # baseline; may only rise as tests land. The finish line is 90.
-  COVERAGE_FLOOR: "77.8"
+  # baseline; may only rise as tests land. The finish line is 90, already
+  # cleared: 1467/1605 statements (91.4%).
+  COVERAGE_FLOOR: "91.4"
 
 jobs:
   changes:

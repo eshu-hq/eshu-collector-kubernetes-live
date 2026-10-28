@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,22 @@ import (
 	corecollector "github.com/eshu-hq/eshu-collector-kubernetes-live/collector"
 	sdk "github.com/eshu-hq/eshu-sdk/collector"
 )
+
+// TestMainExitsNonZeroOnBadArguments proves the binary entrypoint reports a
+// usage failure on stderr and exits 1 instead of serving a claim.
+func TestMainExitsNonZeroOnBadArguments(t *testing.T) {
+	t.Parallel()
+
+	cmd := exec.Command("go", "run", ".", "--bogus-argument")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err == nil {
+		t.Fatal("main(--bogus-argument) exited 0, want non-zero")
+	}
+	if !strings.Contains(stderr.String(), "collector:") {
+		t.Fatalf("stderr = %q, want the collector: failure line", stderr.String())
+	}
+}
 
 func liveClaim(t *testing.T) sdk.Claim {
 	t.Helper()
@@ -272,5 +290,37 @@ func TestRunRejectsBadInvocations(t *testing.T) {
 				t.Fatalf("a rejected invocation wrote %q to stdout", stdout.String())
 			}
 		})
+	}
+}
+
+type errWriter struct{}
+
+var errTestWrite = errors.New("test stdout write failure")
+
+func (errWriter) Write([]byte) (int, error) { return 0, errTestWrite }
+
+// TestRunClaimReportsADeadHostCancel proves a cancelled host context returns
+// the cancellation error instead of a committed result.
+func TestRunClaimReportsADeadHostCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stdout, stderr bytes.Buffer
+	err := runClaim(ctx, nil, strings.NewReader(opsQaRequest(t)), &stdout, &stderr, noBackendGetenv, time.Now)
+	if err == nil {
+		t.Fatal("runClaim(cancelled) error = nil, want the cancellation")
+	}
+}
+
+// TestRunClaimReportsAnUnwritableStdout proves a broken pipe surfaces as an
+// error instead of a silent truncation.
+func TestRunClaimReportsAnUnwritableStdout(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	err := runClaim(context.Background(), nil, strings.NewReader(opsQaRequest(t)), errWriter{}, &stderr, noBackendGetenv, time.Now)
+	if err == nil {
+		t.Fatal("runClaim(broken stdout) error = nil, want the write failure")
 	}
 }
