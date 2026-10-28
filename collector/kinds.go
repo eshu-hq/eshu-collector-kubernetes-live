@@ -39,8 +39,8 @@ const (
 	KubernetesRBACRoleFactKind                   = "k8s_rbac_role"
 	KubernetesRBACBindingFactKind                = "k8s_rbac_binding"
 	KubernetesWorkloadIdentityUseFactKind        = "k8s_workload_identity_use"
-	KubernetesGCPWorkloadIdentityBindingFactKind = "k8s_gcp_workload_identity_binding"
-	KubernetesServiceAccountTokenPostureFactKind = "k8s_service_account_token_posture"
+	KubernetesGCPWorkloadIdentityBindingFactKind = "k8s_gcp_workload_identity_binding" // #nosec G101 -- fact-kind schema identifier, not a credential
+	KubernetesServiceAccountTokenPostureFactKind = "k8s_service_account_token_posture" // #nosec G101 -- fact-kind schema identifier, not a credential
 	EKSIRSAAnnotationFactKind                    = "eks_irsa_annotation"
 	EKSPodIdentityAssociationFactKind            = "eks_pod_identity_association"
 	SecretsIAMCoverageWarningFactKind            = "secrets_iam_coverage_warning"

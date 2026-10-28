@@ -160,3 +160,33 @@ func TestAdapterRedactsRBACRules(t *testing.T) {
 		t.Fatalf("clusterrolebindings = %+v", clusterBindings.Items)
 	}
 }
+
+// TestProjectedServiceAccountTokenSpotsTokenVolumes proves the projected
+// token signal fires only on volumes with a service-account-token source,
+// never on plain or empty projected volumes.
+func TestProjectedServiceAccountTokenSpotsTokenVolumes(t *testing.T) {
+	t.Parallel()
+
+	token := corev1.Volume{
+		Name: "token",
+		VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{Sources: []corev1.VolumeProjection{
+			{ServiceAccountToken: &corev1.ServiceAccountTokenProjection{Path: "token"}},
+		}}},
+	}
+	plain := corev1.Volume{
+		Name: "config",
+		VolumeSource: corev1.VolumeSource{Projected: &corev1.ProjectedVolumeSource{Sources: []corev1.VolumeProjection{
+			{ConfigMap: &corev1.ConfigMapProjection{}},
+		}}},
+	}
+	empty := corev1.Volume{Name: "data"}
+	if !projectedServiceAccountToken([]corev1.Volume{plain, token}) {
+		t.Fatal("token volume present, want true")
+	}
+	if projectedServiceAccountToken([]corev1.Volume{plain, empty}) {
+		t.Fatal("no token volume, want false")
+	}
+	if projectedServiceAccountToken(nil) {
+		t.Fatal("nil volumes, want false")
+	}
+}

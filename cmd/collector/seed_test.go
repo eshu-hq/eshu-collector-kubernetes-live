@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,7 +65,14 @@ func TestSeedWritesBinaryAndManifestAndIsIdempotent(t *testing.T) {
 
 func assertSeeded(t *testing.T, dest string, binary string, manifest string) {
 	t.Helper()
-	info, err := os.Stat(filepath.Join(dest, "collector"))
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o750 {
+		t.Fatalf("destination mode = %v, want 0750", info.Mode().Perm())
+	}
+	info, err = os.Stat(filepath.Join(dest, "collector"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,6 +115,25 @@ func TestSeedRefusesBadInput(t *testing.T) {
 	}
 }
 
+func TestWriteAtomicReportsWriteAndCreateFailures(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := writeAtomic(filepath.Join(dir, "out"), 0o644, func(io.Writer) error {
+		return errors.New("boom")
+	}); err == nil {
+		t.Error("writeAtomic(write error) = nil")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "out")); !os.IsNotExist(err) {
+		t.Error("failed writeAtomic left the target behind")
+	}
+	if err := writeAtomic(filepath.Join(dir, "missing", "out"), 0o644, func(w io.Writer) error {
+		return nil
+	}); err == nil {
+		t.Error("writeAtomic(missing dir) = nil")
+	}
+}
+
 func TestManifestForStampsOnlyADigestPinnedImage(t *testing.T) {
 	t.Parallel()
 
@@ -118,5 +146,55 @@ func TestManifestForStampsOnlyADigestPinnedImage(t *testing.T) {
 	}
 	if _, err := manifestFor(collector.ManifestYAML, "ghcr.io/eshu-hq/x:latest"); err == nil {
 		t.Error("manifestFor(tag) error = nil")
+	}
+}
+
+// TestRunSeedRejectsBadFlags proves flag misuse exits before any file is
+// written.
+func TestRunSeedRejectsBadFlags(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	if err := runSeed([]string{"--bogus"}, &stdout, nil); err == nil {
+		t.Error("runSeed(--bogus) error = nil")
+	}
+	if err := runSeed([]string{"extra"}, &stdout, nil); err == nil {
+		t.Error("runSeed(positional) error = nil")
+	}
+}
+
+// TestSelectImageRefPrefersTheFlagThenTheEnvironment proves the stamp source
+// order and the single-newline trim on each source.
+func TestSelectImageRefPrefersTheFlagThenTheEnvironment(t *testing.T) {
+	t.Parallel()
+
+	if got := selectImageRef("flag-ref\n", func(string) string { return "env-ref" }); got != "flag-ref" {
+		t.Fatalf("flag source = %q, want the trimmed flag", got)
+	}
+	if got := selectImageRef("\n", func(string) string { return "env-ref\n" }); got != "env-ref" {
+		t.Fatalf("env source = %q, want the trimmed environment", got)
+	}
+	if got := selectImageRef("", nil); got != "" {
+		t.Fatalf("nil getenv = %q, want empty", got)
+	}
+}
+
+// TestManifestForRequiresExactlyOneArtifactImage proves a stamp is never
+// dropped onto a manifest with zero (or two) artifact entries.
+func TestManifestForRequiresExactlyOneArtifactImage(t *testing.T) {
+	t.Parallel()
+
+	if _, err := manifestFor([]byte("kind: ComponentPackage\n"), goodImage); err == nil {
+		t.Error("manifestFor(no artifact) error = nil")
+	}
+}
+
+// TestCopyExecutableRefusesADirectorySource proves a non-file executable
+// surfaces as a write failure instead of an empty binary.
+func TestCopyExecutableRefusesADirectorySource(t *testing.T) {
+	t.Parallel()
+
+	if _, err := copyExecutable(t.TempDir(), filepath.Join(t.TempDir(), "out")); err == nil {
+		t.Error("copyExecutable(directory) error = nil")
 	}
 }
