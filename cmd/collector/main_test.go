@@ -121,8 +121,10 @@ func TestRunClaimProvesConfigAcceptanceWithoutACluster(t *testing.T) {
 			t.Fatalf("Claim was not echoed: %+v", result.Claim)
 		}
 		// The binary logs exactly one bounded diagnostic line per claim.
-		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n"); lines != 0 {
-			t.Fatalf("stderr = %q, want exactly one log line", stderr.String())
+		trimmed := strings.TrimSpace(stderr.String())
+		lines := strings.Split(trimmed, "\n")
+		if len(lines) != 1 || strings.TrimSpace(lines[0]) == "" {
+			t.Fatalf("stderr = %q, want exactly one non-empty log line", stderr.String())
 		}
 	}
 }
@@ -202,8 +204,9 @@ func noBackendGetenv(key string) string {
 // TestRunClaimServesOpsQaClaimWithoutTerminalFactoryFailure is the issue #4
 // regression: v0.1.0 built the Handler with a nil ClientFactory, so every
 // ops-qa claim served terminal collection_failed with zero facts. The wired
-// binary must never report that shape again: a claim for the ops-qa target
-// either collects or fails retryably when the backend is unreachable.
+// binary must never report that shape again. With the backend unreachable
+// the deterministic outcome is pinned: retryable state, a single
+// collection_failed status, and no facts.
 func TestRunClaimServesOpsQaClaimWithoutTerminalFactoryFailure(t *testing.T) {
 	t.Parallel()
 
@@ -216,12 +219,14 @@ func TestRunClaimServesOpsQaClaimWithoutTerminalFactoryFailure(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("decode result: %v", err)
 	}
-	if result.State == sdk.ResultTerminal {
-		for _, status := range result.Statuses {
-			if status.FailureClass == collector.FailureCollection {
-				t.Fatalf("State = terminal collection_failed %+v: the nil-factory shape is back", result.Statuses)
-			}
-		}
+	if result.State != sdk.ResultRetryable {
+		t.Fatalf("State = %q, want retryable (an unreachable backend is transient)", result.State)
+	}
+	if len(result.Statuses) != 1 || result.Statuses[0].FailureClass != collector.FailureCollection {
+		t.Fatalf("Statuses = %+v, want a single collection_failed", result.Statuses)
+	}
+	if len(result.Facts) != 0 {
+		t.Fatalf("Facts = %d, want empty on a collection failure", len(result.Facts))
 	}
 }
 
