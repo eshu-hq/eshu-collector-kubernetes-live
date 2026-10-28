@@ -63,7 +63,14 @@ func TestSeedWritesBinaryAndManifestAndIsIdempotent(t *testing.T) {
 
 func assertSeeded(t *testing.T, dest string, binary string, manifest string) {
 	t.Helper()
-	info, err := os.Stat(filepath.Join(dest, "collector"))
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o750 {
+		t.Fatalf("destination mode = %v, want 0750", info.Mode().Perm())
+	}
+	info, err = os.Stat(filepath.Join(dest, "collector"))
 	if err != nil {
 		t.Fatal(err)
 	}
