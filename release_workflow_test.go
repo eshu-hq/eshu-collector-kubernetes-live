@@ -77,10 +77,10 @@ func contractProblems(steps []workflowStep) []string {
 		problems = append(problems, "no step fails unless the tag matches manifest.yaml metadata.version")
 	}
 	conformanceIdx := stepIndex(steps, func(s workflowStep) bool {
-		return strings.Contains(s.Run, "go test") && strings.Contains(s.Run, "TestExtractedNonPodTemplatePayloadsPassConformance")
+		return strings.Contains(s.Run, "go test") && strings.Contains(s.Run, "TestExtractedPayloadsPassConformance")
 	})
 	if conformanceIdx < 0 {
-		problems = append(problems, "no step runs the conformance proof (go test with TestExtractedNonPodTemplatePayloadsPassConformance) before publishing")
+		problems = append(problems, "no step runs the conformance proof (go test with TestExtractedPayloadsPassConformance) before publishing")
 	}
 	publishIdx := stepIndex(steps, func(s workflowStep) bool { return fmt.Sprint(s.With["push"]) == "true" })
 	if publishIdx < 0 {

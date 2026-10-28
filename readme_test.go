@@ -44,11 +44,11 @@ func TestReadmePinsMatchGoMod(t *testing.T) {
 	}
 }
 
-// TestReadmeProofClaimsNameThePodTemplateExclusion keeps the "What is
-// proven" paragraph honest: after pod_template moved to a schema-only path,
-// the README must state the exclusion instead of claiming full-harness for
-// every kubernetes_live fact.
-func TestReadmeProofClaimsNameThePodTemplateExclusion(t *testing.T) {
+// TestReadmeProofClaimsCoverPodTemplateFullHarness keeps the "What is
+// proven" paragraph honest: collector rc.4 allowlists env_from_secret, so the
+// README must claim full-harness for pod_template instead of the spent
+// schema-only exclusion and its StillBlocked pin.
+func TestReadmeProofClaimsCoverPodTemplateFullHarness(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile("README.md")
@@ -57,16 +57,24 @@ func TestReadmeProofClaimsNameThePodTemplateExclusion(t *testing.T) {
 	}
 	text := string(raw)
 	for _, want := range []string{
-		"except `pod_template`",
+		"including `pod_template`",
 		"all 13 emitted kinds",
 		"containers.env_from_secret",
-		"TestExtractedPodTemplateFullHarnessStillBlocked",
+		"TestExtractedPayloadsPassConformance",
 		"k8s_rbac_role",
 		"k8s_rbac_binding",
 		"eks_pod_identity_association",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("README.md does not mention %q", want)
+		}
+	}
+	for _, gone := range []string{
+		"except `pod_template`",
+		"TestExtractedPodTemplateFullHarnessStillBlocked",
+	} {
+		if strings.Contains(text, gone) {
+			t.Errorf("README.md still mentions spent exclusion %q", gone)
 		}
 	}
 	if strings.Contains(text, "for all 10\nemitted kinds") || strings.Contains(text, "for all 10 emitted kinds") {
