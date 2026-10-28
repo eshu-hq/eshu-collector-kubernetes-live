@@ -21,9 +21,10 @@ const coreModulePath = "github.com/eshu-hq/eshu/go"
 // keeps a standalone collector repository standalone: no Eshu internal
 // implementation imports and no cross-collector implementation imports. Only
 // the published SDK modules, OpenTelemetry (spans the emission core already
-// carries), and yaml for the manifest shape tests are allowed besides the
-// standard library. The self-import prefix is derived from go.mod so renaming
-// the module can never desync this allowlist.
+// carries), yaml for the manifest shape tests, and client-go restricted to
+// the collector/clientgo adapter are allowed besides the standard library.
+// The self-import prefix is derived from go.mod so renaming the module can
+// never desync this allowlist.
 func TestImportBoundaryRejectsCoreAndCrossCollectorImports(t *testing.T) {
 	t.Parallel()
 
@@ -34,6 +35,18 @@ func TestImportBoundaryRejectsCoreAndCrossCollectorImports(t *testing.T) {
 	if len(violations) > 0 {
 		t.Fatalf("forbidden imports:\n%s", strings.Join(violations, "\n"))
 	}
+}
+
+// clientgoDir is the single directory allowed to import the Kubernetes client
+// libraries: the live backend adapter behind the ClientFactory seam. Every
+// other package stays backend-neutral and unit-testable with fakes, so a
+// client-go import outside this directory is a layering violation.
+const clientgoDir = "collector/clientgo"
+
+// clientgoImportPrefixes are the Kubernetes client libraries the adapter may
+// use and nothing else may.
+func clientgoImportPrefixes() []string {
+	return []string{"k8s.io/api", "k8s.io/apimachinery", "k8s.io/client-go"}
 }
 
 func allowedImportPrefixes(module string) []string {
@@ -78,6 +91,7 @@ func importViolations(root string, allowedPrefixes []string) ([]string, error) {
 		if err != nil {
 			return err
 		}
+		inClientgo := path == clientgoDir || strings.HasPrefix(path, clientgoDir+"/")
 		for _, imp := range file.Imports {
 			target := strings.Trim(imp.Path.Value, `"`)
 			allowed := false
@@ -85,6 +99,14 @@ func importViolations(root string, allowedPrefixes []string) ([]string, error) {
 				if target == prefix || strings.HasPrefix(target, prefix+"/") {
 					allowed = true
 					break
+				}
+			}
+			if !allowed && inClientgo {
+				for _, prefix := range clientgoImportPrefixes() {
+					if target == prefix || strings.HasPrefix(target, prefix+"/") {
+						allowed = true
+						break
+					}
 				}
 			}
 			if !allowed && !isStandardImport(target) {

@@ -9,7 +9,7 @@ Extraction tracking: [eshu-hq/eshu#8859](https://github.com/eshu-hq/eshu/issues/
 The in-tree extraction census, producer-grant draft, and parity proofs live
 in the core repository until the cutover rehearsal lands them here.
 
-## Serving shim (v0.1.0)
+## Serving (v0.1.1)
 
 The root `collector` package (shim) serves one claim per process through the
 Eshu component-extension host process runner:
@@ -42,13 +42,18 @@ top-level key still fails closed without naming the key.
 Config contract: every target needs a `cluster_id` (the durable scope anchor;
 `ClusterScopeID` derives the scope id from it alone) and a `source_uri` (the
 host validator requires one on every fact). A scan that cannot reach a cluster
-reports terminal `collection_failed`, never `invalid_config`: reaching that
-class proves the envelope decoded and the scope matched. The v0.1.0 image
-ships no live cluster backend (the client-go adapter port needs a live
-backend); `Handler.ClientFactory == nil` reports terminal `collection_failed`
-so the missing backend is explicit, not a silent empty result.
+reports retryable `collection_failed`, never `invalid_config`: reaching that
+class proves the envelope decoded and the scope matched. The v0.1.1 image
+ships the live cluster backend (`collector/clientgo` behind the
+`ClientFactory` seam): the in-cluster service account when the pod runs under
+it, an explicit `KUBECONFIG` file for out-of-cluster collection, and a bounded
+retryable error when neither exists. A `nil` factory still reports terminal
+`collection_failed` so a missing backend stays explicit, never a silent empty
+result — the binary always wires `clientgo.DefaultFactory`, so only a
+directly built `Handler` can hit that shape. Cluster auth resolves from the
+process environment alone; no secret travels in the activation config.
 
-`manifest.yaml` (`metadata.version: 0.1.0`) declares all 13 emitted kinds
+`manifest.yaml` (`metadata.version: 0.1.1`) declares all 13 emitted kinds
 with their schema versions and the placeholder artifact digest; deployments
 stamp the pulled digest with `collector seed --image-ref`. `config.example.yaml`
 is the cutover-shaped activation; `grant.example.json` is the producer-grant
@@ -91,9 +96,9 @@ pack-schema conformance for all 13 emitted kinds, and ported unit tests with
 verbatim in-tree expectations for the paths the fixture pack cannot carry
 (RBAC, ingress edges, pool gating, canaries).
 
-What stays open for cutover (not this proof): the client-go adapter port
-(needs a live backend), claim-driven collection (mapped, not pinned), grant
-enforcement (fails closed per the grant draft), per-target `source_uri`
+What stays open for cutover (not this proof): claim-driven collection (mapped,
+not pinned), grant enforcement (fails closed per the grant draft),
+per-target `source_uri`
 configuration (the SDK requires a non-empty wire URI), the posture SourceURI
 shared-seam fix (owned by the secrets-IAM lane; the boundary sanitizes),
 the SDK payload-key allowlist handoff below, release artifact, and rehearsed
@@ -114,5 +119,8 @@ SDK. Tracked on
 runs schema-only until the SDK release carries it, and `pod_template` runs
 schema-only (`TestExtractedPodTemplatePayloadsMatchPackSchemas`) with the
 full-harness block pinned (`TestExtractedPodTemplateFullHarnessStillBlocked`)
-until the same allowlist covers `env_from_secret`. Do not push a `v0.1.0`
-tag until the SDK allowlist lands or the owner records a waiver.
+until the same allowlist covers `env_from_secret`. The v0.1.1 cutover ships
+the live backend while `pod_template` stays schema-only under the owner's
+waiver (the release gate still pins
+`TestExtractedPodTemplateFullHarnessStillBlocked`); fold it back into full
+harness once the allowlist lands.

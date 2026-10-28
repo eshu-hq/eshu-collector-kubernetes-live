@@ -20,6 +20,7 @@ import (
 	"time"
 
 	collector "github.com/eshu-hq/eshu-collector-kubernetes-live"
+	"github.com/eshu-hq/eshu-collector-kubernetes-live/collector/clientgo"
 )
 
 func main() {
@@ -69,7 +70,11 @@ func runClaim(
 	if err != nil {
 		return err
 	}
-	handler := collector.Handler{Getenv: getenv, Now: now, Log: stderr}
+	// The live cluster backend resolves behind the ClientFactory seam: the
+	// in-cluster service account when the pod runs under it, an explicit
+	// KUBECONFIG for out-of-cluster collection, and a bounded retryable
+	// error when neither exists — never the terminal missing-backend shape.
+	handler := collector.Handler{Getenv: getenv, Now: now, Log: stderr, ClientFactory: clientgo.DefaultFactory(getenv)}
 	result, err := handler.Handle(ctx, request)
 	if err != nil {
 		return err
