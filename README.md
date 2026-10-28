@@ -71,8 +71,8 @@ verbatim from core):
 
 ```go
 require (
-	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
-	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6
+	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4
+	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7
 )
 ```
 
@@ -87,8 +87,9 @@ What is proven: scope/kind/stable-key/attribute/payload parity per scope,
 duplicate-delivery stability, hostile inputs (partial freshness, in-band
 warnings, URI sanitization), the SDK Result boundary (state mapping, 1:1 fact
 mapping, fencing round-trip, credential-free wire URIs), full-harness
-conformance for `kubernetes_live.*` facts except `pod_template`
-(schema-only, see the SDK handoff below), full-harness conformance for the
+conformance for `kubernetes_live.*` facts including `pod_template`
+(`TestExtractedPayloadsPassConformance`, with the pack-schema shape check
+alongside), full-harness conformance for the
 three declared kinds the fixture pack does not span (`k8s_rbac_role`,
 `k8s_rbac_binding`, `eks_pod_identity_association`, via synthetic fixtures),
 pack-schema conformance for all 13 emitted kinds, and ported unit tests with
@@ -115,11 +116,8 @@ set would break the byte-pinned cutover contract, so the fix belongs to the
 SDK. Tracked on
 [eshu-hq/eshu#8851](https://github.com/eshu-hq/eshu/issues/8851) as a
 `redactionSafePayloadKeys` allowlist request; the posture half of the proof
-runs schema-only until the SDK release carries it, and `pod_template` runs
-schema-only (`TestExtractedPodTemplatePayloadsMatchPackSchemas`) with the
-full-harness block pinned (`TestExtractedPodTemplateFullHarnessStillBlocked`)
-until the same allowlist covers `env_from_secret`. The v0.1.1 cutover ships
-the live backend while `pod_template` stays schema-only under the owner's
-waiver (the release gate still pins
-`TestExtractedPodTemplateFullHarnessStillBlocked`); fold it back into full
-harness once the allowlist lands.
+runs schema-only until the SDK release carries it. Collector rc.4 carries the
+`env_from_secret` allowlist ([SDK PR eshu-hq/eshu-sdk#28](https://github.com/eshu-hq/eshu-sdk/pull/28),
+issue eshu-hq/eshu-sdk#26), so `pod_template` now runs in the full harness
+(`TestExtractedPayloadsPassConformance`) with the pack-schema shape check
+(`TestExtractedPodTemplatePayloadsMatchPackSchemas`) alongside.
