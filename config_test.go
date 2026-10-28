@@ -34,7 +34,7 @@ func TestResolveTargetRejectsUnknownFieldsClosed(t *testing.T) {
 
 	config := validLiveTargetConfig()
 	config["token"] = "SECRET"
-	_, _, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, _, err := resolveTarget(config, liveScopeID(t))
 	if err == nil {
 		t.Fatal("resolveTarget() error = nil, want unknown-field rejection")
 	}
@@ -50,7 +50,7 @@ func TestResolveTargetRequiresClusterID(t *testing.T) {
 
 	config := validLiveTargetConfig()
 	delete(config, "cluster_id")
-	if _, _, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" }); err == nil {
+	if _, _, err := resolveTarget(config, liveScopeID(t)); err == nil {
 		t.Fatal("resolveTarget() error = nil, want cluster_id rejection")
 	}
 }
@@ -62,7 +62,7 @@ func TestResolveTargetRequiresSourceURI(t *testing.T) {
 
 	config := validLiveTargetConfig()
 	delete(config, "source_uri")
-	if _, _, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" }); err == nil {
+	if _, _, err := resolveTarget(config, liveScopeID(t)); err == nil {
 		t.Fatal("resolveTarget() error = nil, want source_uri rejection")
 	}
 }
@@ -74,10 +74,10 @@ func TestResolveTargetEnforcesScopeInSingleTargetMode(t *testing.T) {
 	t.Parallel()
 
 	config := validLiveTargetConfig()
-	if _, _, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" }); err != nil {
+	if _, _, err := resolveTarget(config, liveScopeID(t)); err != nil {
 		t.Fatalf("resolveTarget(matching) error = %v, want the configured target", err)
 	}
-	_, _, err := resolveTarget(config, "kubernetes_live:does-not-match", func(string) string { return "" })
+	_, _, err := resolveTarget(config, "kubernetes_live:does-not-match")
 	if err == nil {
 		t.Fatal("resolveTarget(mismatched single target) error = nil, want scope rejection")
 	}
@@ -99,7 +99,7 @@ func TestResolveTargetReadsPerTargetLimits(t *testing.T) {
 		"max_result_bytes":      4096,
 		"claim_timeout_seconds": 60,
 	}
-	_, limits, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, limits, err := resolveTarget(config, liveScopeID(t))
 	if err != nil {
 		t.Fatalf("resolveTarget() error = %v", err)
 	}
@@ -128,7 +128,7 @@ func TestResolveTargetAcceptsTopLevelLimitsSnakeCase(t *testing.T) {
 			"claim_timeout_seconds": 60,
 		},
 	}
-	_, limits, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, limits, err := resolveTarget(config, liveScopeID(t))
 	if err != nil {
 		t.Fatalf("resolveTarget() error = %v", err)
 	}
@@ -153,7 +153,7 @@ func TestResolveTargetAcceptsTopLevelLimitsCamelCase(t *testing.T) {
 			"claimTimeoutSeconds": 60,
 		},
 	}
-	_, limits, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, limits, err := resolveTarget(config, liveScopeID(t))
 	if err != nil {
 		t.Fatalf("resolveTarget(camelCase envelope) error = %v", err)
 	}
@@ -180,7 +180,7 @@ func TestResolveTargetPrefersPerTargetLimitsOverTopLevel(t *testing.T) {
 			"claim_timeout_seconds": 60,
 		},
 	}
-	_, limits, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, limits, err := resolveTarget(config, liveScopeID(t))
 	if err != nil {
 		t.Fatalf("resolveTarget() error = %v", err)
 	}
@@ -203,7 +203,7 @@ func TestResolveTargetAcceptsPerTargetCamelCaseLimits(t *testing.T) {
 
 	config := validLiveTargetConfig()
 	config["limits"] = map[string]any{"maxRecordsPerClaim": 100}
-	_, limits, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, limits, err := resolveTarget(config, liveScopeID(t))
 	if err != nil {
 		t.Fatalf("resolveTarget() error = %v", err)
 	}
@@ -231,7 +231,7 @@ func TestResolveTargetRejectsUnknownLimitsField(t *testing.T) {
 		} else {
 			config["limits"] = limits
 		}
-		_, _, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+		_, _, err := resolveTarget(config, liveScopeID(t))
 		if err == nil {
 			t.Fatalf("%s: resolveTarget() error = nil, want unknown-field rejection", name)
 		}
@@ -250,7 +250,7 @@ func TestResolveTargetRejectsNonObjectTopLevelLimits(t *testing.T) {
 		"targets": []any{validLiveTargetConfig()},
 		"limits":  "SECRET",
 	}
-	_, _, err := resolveTarget(config, liveScopeID(t), func(string) string { return "" })
+	_, _, err := resolveTarget(config, liveScopeID(t))
 	if err == nil {
 		t.Fatal("resolveTarget() error = nil, want limits type rejection")
 	}

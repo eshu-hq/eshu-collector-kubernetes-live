@@ -76,12 +76,11 @@ require (
 )
 ```
 
-No `replace` directives, no core imports. Run the proof:
+No `replace` directives, no core imports. Run the proof (`make ci` is the
+local contract: lint, test, and race with the coverage floor):
 
 ```bash
-go build ./...
-go vet ./...
-go test ./... -count=1
+make ci
 ```
 
 What is proven: scope/kind/stable-key/attribute/payload parity per scope,
