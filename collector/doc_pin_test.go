@@ -19,7 +19,7 @@ import (
 func TestSDKPinsResolve(t *testing.T) {
 	t.Parallel()
 
-	var _ sdkcollector.ResultState = sdkcollector.ResultState("complete")
+	_ = sdkcollector.ResultState("complete")
 	for _, kind := range []string{
 		"kubernetes_live.namespace",
 		"kubernetes_live.pod_template",

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -16,17 +15,16 @@ import (
 	sdk "github.com/eshu-hq/eshu-sdk/collector"
 )
 
-// Handler runs one claim. The zero value is usable: it reads the process
-// environment and the wall clock. The client factory has no default: without
-// a live cluster backend the handler reports terminal collection_failed,
-// never invalid_config, so a request that reaches that class proves the host
+// Handler runs one claim. The zero value is usable: it reads the wall clock
+// and the activation config carries the cluster target, so no environment
+// lookup happens on the config path (cluster auth stays behind the client
+// factory seam). The client factory has no default: without a live cluster
+// backend the handler reports terminal collection_failed, never
+// invalid_config, so a request that reaches that class proves the host
 // envelope decoded and the scope matched. The binary wires
 // clientgo.DefaultFactory as the live backend; a directly built Handler
 // keeps the terminal guard until a factory is set.
 type Handler struct {
-	// Getenv resolves environment references; nil selects os.Getenv, so the
-	// zero value reads the process environment.
-	Getenv func(string) string
 	// Now supplies the clock; nil selects time.Now.
 	Now func() time.Time
 	// ClientFactory builds read-only cluster clients; nil reports terminal
@@ -48,13 +46,6 @@ func (h Handler) now() time.Time {
 	return time.Now().UTC()
 }
 
-func (h Handler) getenv(key string) string {
-	if h.Getenv != nil {
-		return h.Getenv(key)
-	}
-	return os.Getenv(key)
-}
-
 func (h Handler) limits() ResourceUse {
 	return h.Limits.withDefaults()
 }
@@ -67,7 +58,7 @@ func (h Handler) limits() ResourceUse {
 func (h Handler) Handle(ctx context.Context, request Request) (sdk.Result, error) {
 	started := h.now()
 	claim := request.Claim
-	target, configLimits, err := resolveTarget(request.Config, claim.Scope.ID, h.getenv)
+	target, configLimits, err := resolveTarget(request.Config, claim.Scope.ID)
 	if err != nil {
 		h.logConfigFailure(claim, err)
 		return budgetResult(claim, started, FailureInvalidConfig), nil
