@@ -1,6 +1,6 @@
 # eshu-collector-kubernetes-live
 
-Eshu kubernetes live collector, extracted from the Eshu core repository.
+Eshu Kubernetes live collector, extracted from the Eshu core repository.
 
 **Pre-release. Holds no producer authority until its reviewed cutover
 (eshu-hq/eshu#8859).**
