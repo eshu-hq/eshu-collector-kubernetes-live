@@ -1,8 +1,9 @@
 # Example component activation config for the Kubernetes live collector. Copy
 # it, replace the placeholder cluster identity, and point the process at a
-# cluster (KUBECONFIG or in-cluster service account). It holds no secrets:
-# cluster auth resolves from the process environment behind the client factory
-# seam; values here never appear in facts, logs, or statuses.
+# cluster: an explicit KUBECONFIG file wins, otherwise the in-cluster service
+# account (the pod runs with KUBECONFIG unset). It holds no secrets: cluster
+# auth resolves from the process environment behind the client factory seam;
+# values here never appear in facts, logs, or statuses.
 #
 # Cutover identity. When this activation replaces the in-tree Kubernetes live
 # collector, the claim the coordinator plans must equal the in-tree one, or

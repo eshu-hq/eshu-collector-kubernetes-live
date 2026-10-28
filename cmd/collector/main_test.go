@@ -75,8 +75,9 @@ func getenv(key string) string { return "" }
 // TestRunClaimProvesConfigAcceptanceWithoutACluster is the binary-level proof
 // that a live-shaped SDK request is accepted: with no cluster backend the
 // binary still decodes the host envelope and serves a valid result. The
-// result is terminal collection_failed — the config was accepted and the
-// scope matched — never invalid_config and never a process error.
+// result is retryable collection_failed — the config was accepted and the
+// scope matched, and the missing backend is a transient fuel problem, not a
+// poison claim — never terminal, never invalid_config, never a process error.
 func TestRunClaimProvesConfigAcceptanceWithoutACluster(t *testing.T) {
 	t.Parallel()
 
@@ -94,8 +95,8 @@ func TestRunClaimProvesConfigAcceptanceWithoutACluster(t *testing.T) {
 		if err := decoder.Decode(&result); err != nil {
 			t.Fatalf("decode result: %v", err)
 		}
-		if result.State != sdk.ResultTerminal {
-			t.Fatalf("State = %q, want terminal (no cluster backend)", result.State)
+		if result.State != sdk.ResultRetryable {
+			t.Fatalf("State = %q, want retryable (no cluster backend is transient)", result.State)
 		}
 		if len(result.Statuses) != 1 || result.Statuses[0].FailureClass != collector.FailureCollection {
 			t.Fatalf("Statuses = %+v, want one collection_failed", result.Statuses)
@@ -109,6 +110,104 @@ func TestRunClaimProvesConfigAcceptanceWithoutACluster(t *testing.T) {
 		// The binary logs exactly one bounded diagnostic line per claim.
 		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n"); lines != 0 {
 			t.Fatalf("stderr = %q, want exactly one log line", stderr.String())
+		}
+	}
+}
+
+// opsQaScopeID is the durable in-tree scope for cluster ops-qa, pinned by the
+// IaC activation contract test (script/test-ops-qa-kubernetes-live-activation.sh).
+const opsQaScopeID = "kubernetes_live:c2b78f00b6cb961ca37f54d181fed51c2c2f0c70ef8ff4ef3cb975d7d871cc29"
+
+// opsQaClaim returns the exact ops-qa activation shape: a single target with
+// cluster_id ops-qa, source_uri k8s://ops-qa, and the top-level snake_case
+// budget envelope, claimed at fencing token 1 like the terminal ops-qa
+// claims. It must never fail terminal collection_failed from a nil factory:
+// with a backend configured the binary collects, and with the backend
+// unreachable the failure is retryable, never a terminal missing-backend.
+func opsQaClaim(t *testing.T) sdk.Claim {
+	t.Helper()
+	return sdk.Claim{
+		ComponentID:   collector.ComponentID,
+		InstanceID:    "k8s-live-cx-ops-qa-proof",
+		CollectorKind: collector.CollectorKind,
+		SourceSystem:  collector.SourceSystem,
+		Scope:         sdk.Scope{ID: opsQaScopeID, Kind: "cluster"},
+		SourceRunID:   "run-ops-qa-proof",
+		GenerationID:  "generation-ops-qa-proof",
+		WorkItemID:    "work-ops-qa-proof",
+		FencingToken:  "1",
+		Attempt:       1,
+		Deadline:      time.Now().Add(time.Hour).UTC(),
+		ConfigHandle:  "component-config:kubernetes-live",
+	}
+}
+
+// opsQaRequest renders the ops-qa activation shape the way the extension host
+// forwards it: one target object plus the host envelope (top-level limits and
+// a minted host_* credential the satellite accepts and ignores).
+func opsQaRequest(t *testing.T) string {
+	t.Helper()
+	raw, err := json.Marshal(collector.Request{
+		ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
+		Claim:           opsQaClaim(t),
+		Contract:        collector.Contract(),
+		Config: map[string]any{
+			"cluster_id":   "ops-qa",
+			"display_name": "ops-qa EKS",
+			"provider":     "eks",
+			"environment":  "ops-qa",
+			"source_uri":   "k8s://ops-qa",
+			"limits": map[string]any{
+				"max_records_per_claim": 50000,
+				"max_payload_bytes":     1048576,
+				"max_result_bytes":      50331648,
+				"claim_timeout_seconds": 300,
+			},
+			"host_github_app_token": map[string]any{
+				"token":    "minted-per-claim",
+				"scope_id": "cluster-scope",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+// noBackendGetenv points the client factory at a kubeconfig path that cannot
+// exist, so the test is hermetic: it never touches in-cluster files, the
+// ambient ~/.kube/config, or the network, and the only observable is how the
+// binary reports a claim the factory cannot serve.
+func noBackendGetenv(key string) string {
+	if key == "KUBECONFIG" {
+		return "/nonexistent/eshu-test-kubeconfig"
+	}
+	return ""
+}
+
+// TestRunClaimServesOpsQaClaimWithoutTerminalFactoryFailure is the issue #4
+// regression: v0.1.0 built the Handler with a nil ClientFactory, so every
+// ops-qa claim served terminal collection_failed with zero facts. The wired
+// binary must never report that shape again: a claim for the ops-qa target
+// either collects or fails retryably when the backend is unreachable.
+func TestRunClaimServesOpsQaClaimWithoutTerminalFactoryFailure(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), nil, strings.NewReader(opsQaRequest(t)), &stdout, &stderr, noBackendGetenv)
+	if err != nil {
+		t.Fatalf("run() error = %v; a served claim is a result, not a process error", err)
+	}
+	var result sdk.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if result.State == sdk.ResultTerminal {
+		for _, status := range result.Statuses {
+			if status.FailureClass == collector.FailureCollection {
+				t.Fatalf("State = terminal collection_failed %+v: the nil-factory shape is back", result.Statuses)
+			}
 		}
 	}
 }

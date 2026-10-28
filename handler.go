@@ -20,8 +20,9 @@ import (
 // environment and the wall clock. The client factory has no default: without
 // a live cluster backend the handler reports terminal collection_failed,
 // never invalid_config, so a request that reaches that class proves the host
-// envelope decoded and the scope matched. (The client-go adapter port needs
-// a live backend and travels separately from this shim.)
+// envelope decoded and the scope matched. The binary wires
+// clientgo.DefaultFactory as the live backend; a directly built Handler
+// keeps the terminal guard until a factory is set.)
 type Handler struct {
 	// Getenv resolves environment references; nil selects os.Getenv, so the
 	// zero value reads the process environment.
