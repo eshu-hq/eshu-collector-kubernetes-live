@@ -34,7 +34,7 @@ func TestDockerfileMatchesSeedExpectations(t *testing.T) {
 
 // TestCIBuildsTheReleaseImage keeps a broken Dockerfile from surfacing only
 // at release: the CI workflow must build the image on every branch push and
-// pull request.
+// pull request, either directly or through the shared reusable image lane.
 func TestCIBuildsTheReleaseImage(t *testing.T) {
 	t.Parallel()
 
@@ -43,7 +43,9 @@ func TestCIBuildsTheReleaseImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(raw)
-	if !strings.Contains(text, "docker build") || !strings.Contains(text, "./Dockerfile") {
-		t.Fatal("ci.yml runs no docker build of ./Dockerfile; a broken base digest, COPY path, or ENTRYPOINT surfaces only at release")
+	direct := strings.Contains(text, "docker build") && strings.Contains(text, "./Dockerfile")
+	reusable := strings.Contains(text, "go-collector-ci") && strings.Contains(text, "run-image: true")
+	if !direct && !reusable {
+		t.Fatal("ci.yml builds the release image neither directly (docker build of ./Dockerfile) nor via the reusable image lane (go-collector-ci with run-image: true); a broken base digest, COPY path, or ENTRYPOINT surfaces only at release")
 	}
 }
