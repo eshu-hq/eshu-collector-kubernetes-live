@@ -115,11 +115,13 @@ jobs:
 
   go-ci:
     needs: [changes]
-    # No `if` gate: on the weekly schedule changes is skipped, every run-*
-    # expression below is false, and the reusable govulncheck/gosec lanes
-    # still run (fail closed). Each run-* mirrors the lane condition the
-    # in-repo workflow used before the reusable migration.
-    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@5e9144618f5a2b6e677a90ee1fc9728128463511 # v1
+    # Skipped only on docs-only PRs (no lane can be affected). On the weekly
+    # schedule changes is skipped, so schedule is pinned true and the
+    # reusable govulncheck/gosec lanes still run (fail closed). Each run-*
+    # mirrors the lane condition the in-repo workflow used before the
+    # reusable migration.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.shell == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.image == 'true'
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@d659bc20d7afe5f207d08b25c3a2af7f299d3e77 # v1
     with:
       module: eshu-collector-kubernetes-live
       working-directory: .
