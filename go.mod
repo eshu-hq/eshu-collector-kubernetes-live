@@ -3,8 +3,8 @@ module github.com/eshu-hq/eshu-collector-kubernetes-live
 go 1.26.10
 
 require (
-	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
-	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.6
+	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4
+	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	gopkg.in/yaml.v3 v3.0.1
