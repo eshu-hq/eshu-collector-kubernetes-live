@@ -121,7 +121,7 @@ jobs:
     # mirrors the lane condition the in-repo workflow used before the
     # reusable migration.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.shell == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.image == 'true'
-    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@d659bc20d7afe5f207d08b25c3a2af7f299d3e77 # v1
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@79dd01d7719645485e2e8e07e8075ccba8c518b5 # main with dead-pin fix (v1 tag predates it; move to v2 tag when eshu-hq/.github#9 lands)
     with:
       module: eshu-collector-kubernetes-live
       working-directory: .
