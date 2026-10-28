@@ -22,7 +22,7 @@ import (
 // never invalid_config, so a request that reaches that class proves the host
 // envelope decoded and the scope matched. The binary wires
 // clientgo.DefaultFactory as the live backend; a directly built Handler
-// keeps the terminal guard until a factory is set.)
+// keeps the terminal guard until a factory is set.
 type Handler struct {
 	// Getenv resolves environment references; nil selects os.Getenv, so the
 	// zero value reads the process environment.
