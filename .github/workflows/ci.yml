@@ -1,21 +1,19 @@
 # Collector CI: thin wrapper over the shared reusable lanes.
 #
 # Stable job names (same in every collector repo; only ci-complete is ever
-# required in a ruleset): lint, test, race, shell, image, actionlint,
-# govulncheck, gosec, ci-complete. The lint/test/race/shell/image/
-# govulncheck/gosec lane bodies live in eshu-hq/.github go-collector-ci,
-# pinned by SHA below; this file keeps path selection (changes), the
-# coverage floor, the local actionlint lane (no reusable equivalent), and
-# the top-level ci-complete aggregate, so the required check name never
-# moves. Nested reusable checks surface as "go-ci / <lane>".
+# required in a ruleset): lint, test, race, shell, image, boundary,
+# actionlint, govulncheck, gosec, ci-complete. The lane bodies live in
+# eshu-hq/.github go-collector-ci, pinned by SHA below; this file keeps
+# path selection (changes), the coverage floor, the weekly schedule
+# follow-through (file-findings), and the top-level ci-complete aggregate,
+# so the required check name never moves. Nested reusable checks surface
+# as "go-ci / <lane>".
 #
 # Path selection happens once, in the changes job (dorny/paths-filter). A PR
 # only pays for lanes its paths can affect. Pushes to main and manual
 # dispatches run every PR lane (a workflow change must prove the lanes still
-# work); the weekly schedule runs govulncheck and gosec (the run-* gates go
-# false while changes is skipped, and those two reusable lanes are
-# unconditional). The image lane is unconditional too, so the release image
-# builds on every run, schedule included.
+# work); the weekly schedule runs every default-on lane (fail closed) and
+# files an issue through file-findings when the security lanes fail.
 #
 # Fixture classification (Eshu #9200 lesson: JSON under code paths is code):
 # collector/testdata/8859-parity-kubernetes-live.json is read by
@@ -116,45 +114,60 @@ jobs:
   go-ci:
     needs: [changes]
     # Skipped only on docs-only PRs (no lane can be affected). On the weekly
-    # schedule changes is skipped, so schedule is pinned true and the
-    # reusable govulncheck/gosec lanes still run (fail closed). Each run-*
+    # schedule changes is skipped, so schedule is pinned true and every
+    # default-on reusable lane still runs (fail closed). Each run-*
     # mirrors the lane condition the in-repo workflow used before the
     # reusable migration.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.shell == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.image == 'true'
-    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@79dd01d7719645485e2e8e07e8075ccba8c518b5 # main with dead-pin fix (v1 tag predates it; move to v2 tag when eshu-hq/.github#9 lands)
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@4d01ab90baf5dd77c21cc1ee6bdf701332613449 # v2
     with:
       module: eshu-collector-kubernetes-live
       working-directory: .
       coverage-floor: 91.4
-      # Must match the go directive in go.mod; bump together. (The reusable
-      # default is older than this module's toolchain.)
-      go-version: "1.26.10"
+      go-version-file: go.mod
       run-image: true
-      run-lint: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' }}
-      run-test: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.image == 'true' }}
-      run-race: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' }}
-      run-shell: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.shell == 'true' }}
+      image-tag: eshu-collector-kubernetes-live:ci
+      run-lint: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' }}
+      run-test: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.image == 'true' }}
+      run-race: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' }}
+      run-shell: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.shell == 'true' }}
+      # The replace-directive ban used to be a local lint step; the
+      # boundary hook runs it as a lane so `make ci` and CI agree.
+      run-boundary: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' }}
+      boundary-command: "! rg -n '^replace ' go.mod"
+      run-govulncheck: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.deps == 'true' }}
+      run-gosec: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true' }}
+      # Scheduled runs opt into gosec failure so the file-findings job
+      # below can open an issue; PR lanes stay advisory.
+      gosec-fail-on-findings: ${{ github.event_name == 'schedule' }}
+      run-actionlint: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.workflows == 'true' }}
 
-  actionlint:
-    needs: [changes]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.workflows == 'true'
+  # Weekly security sweep follow-through: the reusable lanes have no
+  # issue-filing step, so a red schedule run files here instead.
+  file-findings:
+    needs: [go-ci]
+    if: github.event_name == 'schedule' && needs.go-ci.result == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: actionlint
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/*.yml
+      - name: File or update an issue on scheduled findings
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="govulncheck/gosec findings (weekly schedule)"
+          body="Weekly security sweep failed. See the triggering workflow run logs; fix by bumping the toolchain or the affected module, then close this issue on a clean run. (No label: this repo has no security label.)"
+          number=$(gh issue list --search "$title in:title" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh issue create --title "$title" --body "$body"
+          else
+            gh issue comment "$number" --body "$body"
+          fi
 
   ci-complete:
-    needs: [changes, go-ci, actionlint]
+    needs: [changes, go-ci]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

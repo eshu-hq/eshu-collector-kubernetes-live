@@ -20,17 +20,20 @@ skipped lanes stay skipped.
 | PR changes | Lanes that run |
 |---|---|
 | Docs only (`README.md`, `LICENSE`, `CODEOWNERS`, `*.md`) | none |
-| Go sources, `go.mod`, `go.sum`, `.golangci.yml` | `lint`, `test`, `race`, `image`, `govulncheck` on deps |
+| Go sources, `go.mod`, `go.sum`, `.golangci.yml` | `lint`, `test`, `race`, `boundary`, `image`, `govulncheck` on deps |
 | Fixtures tests read (`collector/testdata/**`, `*.json`, `manifest.yaml`, `*.example.*`) | `test` only |
-| Shell scripts (`**/*.sh`) | `shell` only |
+| Shell scripts (`**/*.sh`) | `shell` only (plus `image` and security lanes, which have no per-lane switch in the shared workflow) |
 | `Dockerfile`, `.dockerignore` | `test`, `image` |
-| `.github/workflows/**` | `actionlint`, plus `lint`, `test`, `race`, `image` |
-| Push to `main`, weekly schedule | `govulncheck`, `gosec`; the schedule files or updates an issue on findings |
+| `.github/workflows/**` | `actionlint`, plus `lint`, `test`, `race`, `boundary`, `image` |
+| Push to `main`, weekly schedule | every default-on lane; the schedule files or updates an issue on findings |
 
-`lint` runs `go vet`, whole-repo `golangci-lint` (no baselines), the
-`gofumpt` format check, `go mod tidy`, the `replace`-directive ban, and the
-500-line file cap. `race` runs the whole module with `-race`, uploads the
-coverprofile (14-day retention), and fails below `COVERAGE_FLOOR`.
+Lane bodies live in the shared `eshu-hq/.github` `go-collector-ci`
+reusable workflow (pinned by SHA in `ci.yml`); job names are identical
+there. `lint` runs `go vet`, whole-repo `golangci-lint` (no baselines),
+the `gofumpt` format check, and `go mod tidy`. `boundary` runs the
+`replace`-directive ban, and the 500-line file cap lives in `lint`.
+`race` runs the whole module with `-race`, uploads the coverprofile
+(14-day retention), and fails below `COVERAGE_FLOOR`.
 
 ## Rules that do not bend
 
