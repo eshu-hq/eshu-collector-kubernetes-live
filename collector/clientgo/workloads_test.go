@@ -104,6 +104,7 @@ func TestAdapterMapsJobAndCronJobWithoutReplicas(t *testing.T) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "billing", UID: "uid-j"},
 		Spec: batchv1.JobSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"job": "billing"}},
 			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
 				Name: "billing", Image: "acme/billing:1",
 			}}}},
@@ -114,6 +115,7 @@ func TestAdapterMapsJobAndCronJobWithoutReplicas(t *testing.T) {
 		Spec: batchv1.CronJobSpec{
 			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
+					Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"cronjob": "nightly"}},
 					Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
 						Name: "nightly", Image: "acme/nightly:1",
 					}}}},
@@ -137,6 +139,9 @@ func TestAdapterMapsJobAndCronJobWithoutReplicas(t *testing.T) {
 	if len(gotJob.Containers) != 1 || gotJob.Containers[0].Image != "acme/billing:1" {
 		t.Fatalf("job containers = %+v", gotJob.Containers)
 	}
+	if len(gotJob.Selector) != 1 || gotJob.Selector["job"] != "billing" {
+		t.Fatalf("job selector = %v, want the job match labels", gotJob.Selector)
+	}
 	if gotJob.DesiredReplicas != nil || gotJob.ReadyReplicas != nil || gotJob.AvailableReplicas != nil {
 		t.Fatal("job carries replica fields, want none")
 	}
@@ -154,6 +159,9 @@ func TestAdapterMapsJobAndCronJobWithoutReplicas(t *testing.T) {
 	}
 	if len(gotCron.Containers) != 1 || gotCron.Containers[0].Image != "acme/nightly:1" {
 		t.Fatalf("cronjob containers = %+v (want the nested job template)", gotCron.Containers)
+	}
+	if len(gotCron.Selector) != 1 || gotCron.Selector["cronjob"] != "nightly" {
+		t.Fatalf("cronjob selector = %v, want the nested job template match labels", gotCron.Selector)
 	}
 	if gotCron.DesiredReplicas != nil || gotCron.ReadyReplicas != nil || gotCron.AvailableReplicas != nil {
 		t.Fatal("cronjob carries replica fields, want none")
