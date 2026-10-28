@@ -1,0 +1,26 @@
+.github/workflows/release.yml
+  h_78a442cba0b3e6 72
+README.md
+  h_78a442cba0b3e6 74-75,90-92,119-123
+collector/proof_conformance_test.go
+  h_78a442cba0b3e6 184-192,195-196,222-228
+go.mod
+  h_78a442cba0b3e6 6-7
+go.sum
+  h_78a442cba0b3e6 13-16
+readme_test.go
+  h_78a442cba0b3e6 47-51,60,63,72-79
+release_workflow_test.go
+  h_78a442cba0b3e6 80,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e45577de9505cce5b8e64124d504b5d1bade0e35",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
