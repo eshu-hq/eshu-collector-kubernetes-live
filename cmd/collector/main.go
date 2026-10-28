@@ -74,7 +74,7 @@ func runClaim(
 	// in-cluster service account when the pod runs under it, an explicit
 	// KUBECONFIG for out-of-cluster collection, and a bounded retryable
 	// error when neither exists — never the terminal missing-backend shape.
-	handler := collector.Handler{Getenv: getenv, Now: now, Log: stderr, ClientFactory: clientgo.DefaultFactory(getenv)}
+	handler := collector.Handler{Now: now, Log: stderr, ClientFactory: clientgo.DefaultFactory(getenv)}
 	result, err := handler.Handle(ctx, request)
 	if err != nil {
 		return err

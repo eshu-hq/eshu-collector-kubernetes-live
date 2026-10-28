@@ -38,11 +38,6 @@ func liveClaim(t *testing.T) sdk.Claim {
 	}
 }
 
-func liveRequest(t *testing.T) string {
-	t.Helper()
-	return liveRequestWith(t, liveClaim(t))
-}
-
 func liveRequestWith(t *testing.T, claim sdk.Claim) string {
 	t.Helper()
 	raw, err := json.Marshal(collector.Request{

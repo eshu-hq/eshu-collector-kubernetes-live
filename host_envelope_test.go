@@ -80,7 +80,7 @@ func TestResolveTargetAcceptsTopLevelLimitsEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, limits, err := resolveTarget(liveHostEnvelope(), scopeID, func(string) string { return "" })
+	_, limits, err := resolveTarget(liveHostEnvelope(), scopeID)
 	if err != nil {
 		t.Fatalf("resolveTarget(envelope) error = %v, want the host limits envelope accepted", err)
 	}
@@ -104,7 +104,7 @@ func TestResolveTargetIgnoresHostMintedKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := resolveTarget(liveHostEnvelope(), scopeID, func(string) string { return "" }); err != nil {
+	if _, _, err := resolveTarget(liveHostEnvelope(), scopeID); err != nil {
 		t.Fatalf("resolveTarget(envelope+token) error = %v, want the host token key ignored", err)
 	}
 }
@@ -121,7 +121,7 @@ func TestResolveTargetRejectsUnknownEnvelopeKey(t *testing.T) {
 	}
 	config := liveHostEnvelope()
 	config["bogus_key"] = 1
-	_, _, err = resolveTarget(config, scopeID, func(string) string { return "" })
+	_, _, err = resolveTarget(config, scopeID)
 	if err == nil {
 		t.Fatal("resolveTarget() error = nil, want unknown-field rejection")
 	}

@@ -13,18 +13,16 @@ import (
 	"testing"
 )
 
-// coreModulePath is the Eshu core module. The published SDK modules live under
-// github.com/eshu-hq/eshu-sdk, a different prefix.
-const coreModulePath = "github.com/eshu-hq/eshu/go"
-
 // TestImportBoundaryRejectsCoreAndCrossCollectorImports is the CI gate that
 // keeps a standalone collector repository standalone: no Eshu internal
-// implementation imports and no cross-collector implementation imports. Only
-// the published SDK modules, OpenTelemetry (spans the emission core already
-// carries), yaml for the manifest shape tests, and client-go restricted to
-// the collector/clientgo adapter are allowed besides the standard library.
-// The self-import prefix is derived from go.mod so renaming the module can
-// never desync this allowlist.
+// implementation imports (the Eshu core module lives at
+// github.com/eshu-hq/eshu/go while the published SDK modules live under
+// github.com/eshu-hq/eshu-sdk, a different prefix) and no cross-collector
+// implementation imports. Only the published SDK modules, OpenTelemetry
+// (spans the emission core already carries), yaml for the manifest shape
+// tests, and client-go restricted to the collector/clientgo adapter are
+// allowed besides the standard library. The self-import prefix is derived
+// from go.mod so renaming the module can never desync this allowlist.
 func TestImportBoundaryRejectsCoreAndCrossCollectorImports(t *testing.T) {
 	t.Parallel()
 
