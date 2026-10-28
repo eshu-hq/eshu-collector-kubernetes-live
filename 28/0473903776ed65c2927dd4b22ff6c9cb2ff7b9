@@ -1,0 +1,16 @@
+cmd/collector/main_test.go
+  h_78a442cba0b3e6 124-127,207-209,222-229
+collector/clientgo/adapter_pagination_test.go
+  h_78a442cba0b3e6 1-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "280473903776ed65c2927dd4b22ff6c9cb2ff7b9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
