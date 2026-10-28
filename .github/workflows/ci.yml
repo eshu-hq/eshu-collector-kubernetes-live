@@ -20,8 +20,10 @@
 # "docker build" of "./Dockerfile" below) and release.yml by
 # release_workflow_test.go. config.example.yaml has no test reader today but
 # rides the explicit *.example.* fixtures entry. README.md is opened by
-# readme_test.go, but only with Contains assertions on pin lines, so prose
-# edits stay in the docs class per the epic table.
+# readme_test.go, which asserts both pin lines (TestReadmePinsMatchGoMod) and
+# seven prose phrases (TestReadmeProofClaimsNameThePodTemplateExclusion), so
+# prose edits stay in the docs class per the epic table: a rewording reds
+# main on the post-merge push, which runs every lane.
 name: ci
 
 on:
@@ -77,6 +79,7 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - '.golangci.yml'
+              - 'Makefile'
             fixtures:
               - 'collector/testdata/**'
               - '**/*.json'
@@ -91,6 +94,7 @@ jobs:
               - '.golangci.yml'
             workflows:
               - '.github/workflows/**'
+              - '.github/dependabot.yml'
             image:
               - 'Dockerfile'
               - '.dockerignore'
@@ -233,7 +237,9 @@ jobs:
 
   govulncheck:
     needs: [changes]
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.deps == 'true'
+    # always(): changes is skipped on schedule, and a skipped need skips this
+    # job unless the condition uses a status-check function. Fail closed.
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.deps == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -275,7 +281,8 @@ jobs:
     # to the Security tab for triage in the open, never blanket-excluded.
     continue-on-error: true
     needs: [changes]
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true'
+    # always(): see govulncheck. Fail closed on the weekly schedule sweep.
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflows == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
