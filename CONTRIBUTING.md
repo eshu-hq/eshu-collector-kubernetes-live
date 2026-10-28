@@ -1,0 +1,51 @@
+# Contributing
+
+## Local checks
+
+`make ci` is the whole local contract: it runs the `lint`, `test`, and
+`race` lane commands from `.github/workflows/ci.yml`, including the
+coverage floor. Run it before every push. The one external binary is
+`golangci-lint` at v2.12.2 (the version Eshu uses):
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+```
+
+## CI lanes
+
+Job names are stable across every collector repo. Only `ci-complete` is
+required for merge; it passes when needed lanes pass and legitimately
+skipped lanes stay skipped.
+
+| PR changes | Lanes that run |
+|---|---|
+| Docs only (`README.md`, `LICENSE`, `CODEOWNERS`, `*.md`) | none |
+| Go sources, `go.mod`, `go.sum`, `.golangci.yml` | `lint`, `test`, `race`, `image`, `govulncheck` on deps |
+| Fixtures tests read (`collector/testdata/**`, `*.json`, `manifest.yaml`, `*.example.*`) | `test` only |
+| Shell scripts (`**/*.sh`) | `shell` only |
+| `Dockerfile`, `.dockerignore` | `test`, `image` |
+| `.github/workflows/**` | `actionlint`, plus `lint`, `test`, `race`, `image` |
+| Push to `main`, weekly schedule | `govulncheck`, `gosec`; the schedule files or updates an issue on findings |
+
+`lint` runs `go vet`, whole-repo `golangci-lint` (no baselines), the
+`gofumpt` format check, `go mod tidy`, the `replace`-directive ban, and the
+500-line file cap. `race` runs the whole module with `-race`, uploads the
+coverprofile (14-day retention), and fails below `COVERAGE_FLOOR`.
+
+## Rules that do not bend
+
+- The coverage floor lives in `ci.yml` as `COVERAGE_FLOOR` and may only
+  rise. The finish line is 90% of statements; never close a gap by lowering
+  the target, excluding packages silently, or deleting assertions.
+- No `.go` file may exceed 500 lines (plain `wc -l` step, no plugin).
+- No static gates besides that cap: no committed counts, lists, or parity
+  files. Lint, format, vet, build, tests, and race judge the code itself.
+- Lint runs on the whole repo. Any exclusion in `.golangci.yml` needs a
+  reason and a linked open issue.
+- `gosec` is advisory (SARIF to the Security tab) until its false-positive
+  rate here is measured. Triage findings in the open with per-site `#nosec`
+  reasons; never blanket-exclude a rule.
+- All GitHub Actions are pinned by commit SHA in the `release.yml` style.
+- Dependabot proposes weekly grouped updates for Go modules and actions.
+  The `govulncheck` lane stays the backstop and fails the PR on reachable
+  findings.
