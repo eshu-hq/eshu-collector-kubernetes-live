@@ -27,6 +27,9 @@ const (
 	signerIdentity = "https://github.com/${{ github.workflow_ref }}"
 	// oidcIssuerFlag pins the GitHub Actions OIDC issuer on the verify step.
 	oidcIssuerFlag = `--certificate-oidc-issuer "https://token.actions.githubusercontent.com"`
+	// mainHeadStepName is the tag-only step that refuses a tag whose commit is
+	// not the protected main head.
+	mainHeadStepName = "Require the tag to point at the protected main head"
 	// sbomFile is the SBOM the generate and attest steps must agree on.
 	sbomFile = "eshu-collector-kubernetes-live.spdx.json"
 )
@@ -37,6 +40,7 @@ type workflowStep struct {
 	Run  string            `yaml:"run"`
 	With map[string]any    `yaml:"with"`
 	Env  map[string]string `yaml:"env"`
+	If   string            `yaml:"if"`
 }
 
 type workflowFile struct {
@@ -44,6 +48,7 @@ type workflowFile struct {
 	Permissions map[string]string `yaml:"permissions"`
 	Jobs        map[string]struct {
 		Permissions map[string]string `yaml:"permissions"`
+		Env         map[string]string `yaml:"env"`
 		Steps       []workflowStep    `yaml:"steps"`
 	} `yaml:"jobs"`
 }
@@ -133,6 +138,53 @@ func contractProblems(steps []workflowStep) []string {
 	return problems
 }
 
+// mainHeadProblems checks the guard that refuses a v* tag whose commit is not
+// the protected main head: a tag-only step that runs after a credential-free
+// checkout, compares github.sha with a freshly fetched origin/main, and
+// precedes the manifest check and the image push.
+func mainHeadProblems(steps []workflowStep, jobEnv map[string]string) []string {
+	var problems []string
+	guardIdx := stepIndex(steps, func(s workflowStep) bool { return s.Name == mainHeadStepName })
+	if guardIdx < 0 {
+		return []string{fmt.Sprintf("no step named %q", mainHeadStepName)}
+	}
+	guard := steps[guardIdx]
+	if guard.If != "github.ref_type == 'tag'" {
+		problems = append(problems, fmt.Sprintf("step %q runs when %q, want only tag events", mainHeadStepName, guard.If))
+	}
+	if got := guard.Env["TAG_COMMIT"]; got != "${{ github.sha }}" {
+		problems = append(problems, fmt.Sprintf("step %q TAG_COMMIT = %q, want ${{ github.sha }}", mainHeadStepName, got))
+	}
+	for _, want := range []string{"git fetch origin main", "git rev-parse origin/main", `"${TAG_COMMIT}" != "${main_head}"`, "exit 1"} {
+		if !strings.Contains(guard.Run, want) {
+			problems = append(problems, fmt.Sprintf("step %q lacks %q", mainHeadStepName, want))
+		}
+	}
+	if jobEnv["TAG_NAME"] != "${{ github.ref_name }}" {
+		problems = append(problems, fmt.Sprintf("job env TAG_NAME = %q, want ${{ github.ref_name }}", jobEnv["TAG_NAME"]))
+	}
+	checkoutIdx := stepIndex(steps, func(s workflowStep) bool { return strings.HasPrefix(s.Uses, "actions/checkout@") })
+	switch {
+	case checkoutIdx < 0:
+		problems = append(problems, "no checkout step before the main-head guard")
+	case checkoutIdx > guardIdx:
+		problems = append(problems, "the main-head guard runs before the checkout")
+	default:
+		if got := fmt.Sprint(steps[checkoutIdx].With["persist-credentials"]); got != "false" {
+			problems = append(problems, fmt.Sprintf("checkout persist-credentials = %q, want false", got))
+		}
+	}
+	versionIdx := stepIndex(steps, func(s workflowStep) bool { return s.Name == "Require the tag to match the manifest version" })
+	if versionIdx >= 0 && guardIdx > versionIdx {
+		problems = append(problems, "the main-head guard runs after the manifest version check")
+	}
+	publishIdx := stepIndex(steps, func(s workflowStep) bool { return fmt.Sprint(s.With["push"]) == "true" })
+	if publishIdx >= 0 && guardIdx > publishIdx {
+		problems = append(problems, "the main-head guard runs after the image is pushed")
+	}
+	return problems
+}
+
 // releaseSteps loads the release workflow steps.
 func releaseSteps(t *testing.T) []workflowStep {
 	t.Helper()
@@ -159,6 +211,28 @@ func TestReleaseWorkflowKeepsThePublishingContract(t *testing.T) {
 
 	if problems := contractProblems(releaseSteps(t)); len(problems) > 0 {
 		t.Fatalf("release workflow contract:\n%s", strings.Join(problems, "\n"))
+	}
+}
+
+// TestReleaseWorkflowRefusesTagsOffTheMainHead proves a pushed v* tag is
+// refused unless it points at the protected main head, before anything builds.
+func TestReleaseWorkflowRefusesTagsOffTheMainHead(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(".github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow workflowFile
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	image, ok := workflow.Jobs["image"]
+	if !ok {
+		t.Fatal("release.yml has no image job")
+	}
+	if problems := mainHeadProblems(image.Steps, image.Env); len(problems) > 0 {
+		t.Fatalf("main-head guard:\n%s", strings.Join(problems, "\n"))
 	}
 }
 

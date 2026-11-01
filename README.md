@@ -59,8 +59,9 @@ stamp the pulled digest with `collector seed --image-ref`. `config.example.yaml`
 is the cutover-shaped activation; `grant.example.json` is the producer-grant
 request an operator submits (one grant per declared kind, bound to this
 producer and version). Releasing: push a `v*` tag matching
-`manifest.yaml metadata.version` and `.github/workflows/release.yml` builds,
-signs, and attests the image.
+`manifest.yaml metadata.version` on the protected `main` head and
+`.github/workflows/release.yml` builds, signs, and attests the image. A tag on
+any other commit fails before anything is built or pushed.
 
 ## Extracted-path proof (`collector/`)
 
