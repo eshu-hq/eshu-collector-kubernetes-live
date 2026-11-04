@@ -58,6 +58,15 @@ func (h Handler) limits() ResourceUse {
 func (h Handler) Handle(ctx context.Context, request Request) (sdk.Result, error) {
 	started := h.now()
 	claim := request.Claim
+	// A cassette selection short-circuits the live path: replay serves the
+	// recorded scope credential-free, so the client factory guard below never
+	// applies and no cluster backend is touched.
+	if replay, ok, err := decodeCassetteRef(request.Config); err != nil {
+		h.logConfigFailure(claim, err)
+		return budgetResult(claim, started, FailureInvalidConfig), nil
+	} else if ok {
+		return h.handleReplay(ctx, claim, started, replay, request.Config)
+	}
 	target, configLimits, err := resolveTarget(request.Config, claim.Scope.ID)
 	if err != nil {
 		h.logConfigFailure(claim, err)
@@ -111,6 +120,50 @@ func (h Handler) Handle(ctx context.Context, request Request) (sdk.Result, error
 	if !matched {
 		h.logConfigFailure(claim, fmt.Errorf("source drained without yielding the claimed cluster"))
 		return budgetResult(claim, started, FailureInvalidConfig), nil
+	}
+	return h.completeResult(claim, collected, started, limits), nil
+}
+
+// handleReplay serves one claim from a pre-recorded cassette: it loads the
+// file, replays the one scope the claim names, and completes the result on
+// the same budgets-and-status path as a live snapshot. There is no commit
+// boundary on this side — the host commits the returned result — so parity
+// with the in-tree cassette source is proved at sdk.Result level. Record
+// capture is deliberately absent here: without a cluster there is nothing to
+// capture, and the stdio claim plane returns one result with no artifact
+// egress for a cassette, so recording stays in-tree.
+func (h Handler) handleReplay(
+	ctx context.Context,
+	claim sdk.Claim,
+	started time.Time,
+	replay cassetteRef,
+	raw map[string]any,
+) (sdk.Result, error) {
+	topLimits, err := decodeTopLevelLimits(raw["limits"])
+	if err != nil {
+		h.logConfigFailure(claim, err)
+		return budgetResult(claim, started, FailureInvalidConfig), nil
+	}
+	limits := topLimits.overlay(h.limits())
+	runCtx, cancel, ok := claimContext(ctx, claim, started, limits)
+	defer cancel()
+	if !ok {
+		h.logFailure(claim, FailureClaimDeadline)
+		return failureResult(claim, started, Failure{Class: FailureClaimDeadline}, 0), nil
+	}
+	file, err := corecollector.LoadFile(replay.Path)
+	if err != nil {
+		h.logConfigFailure(claim, err)
+		return budgetResult(claim, started, FailureInvalidConfig), nil
+	}
+	collected, err := corecollector.ReplayClaimedScope(file, claim.Scope.ID)
+	if err != nil {
+		h.logConfigFailure(claim, err)
+		return budgetResult(claim, started, FailureInvalidConfig), nil
+	}
+	if stoppedAtClaimDeadline(runCtx) {
+		h.logFailure(claim, FailureClaimDeadline)
+		return failureResult(claim, started, Failure{Class: FailureClaimDeadline}, 0), nil
 	}
 	return h.completeResult(claim, collected, started, limits), nil
 }

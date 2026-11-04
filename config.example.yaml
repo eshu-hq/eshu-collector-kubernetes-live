@@ -50,3 +50,15 @@ config:
     # min(2s, 5% of the time left) and returns retryable
     # claim_deadline_exceeded with no facts.
     claim_timeout_seconds: 300
+# Cassette replay (alternative to the live target above; the two forms are
+# mutually exclusive). The claim replays the one recorded scope whose scope id
+# matches the claim, with no cluster backend and no credentials. Record the
+# cassette in-tree and point the activation at the file; replay serves it on
+# the claim path. An optional limits envelope may sit beside cassette_file.
+# config:
+#   cassette_file: /var/eshu/cassettes/ops-qa-1.json
+#   limits:
+#     max_records_per_claim: 50000
+#     max_payload_bytes: 1048576
+#     max_result_bytes: 50331648
+#     claim_timeout_seconds: 300
