@@ -16,16 +16,17 @@ import (
 	sdk "github.com/eshu-hq/eshu-sdk/collector"
 )
 
-func TestCountWarningsCountsOnlyWarningFacts(t *testing.T) {
+func TestCountWarningsCountsBothWarningKinds(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []corecollector.Envelope{
 		{FactKind: FactKindWarning},
 		{FactKind: "kubernetes_live.namespace"},
 		{FactKind: FactKindWarning},
+		{FactKind: FactKindSecretsIAMCoverageWarning},
 	}
-	if got := countWarnings(envelopes); got != 2 {
-		t.Fatalf("countWarnings() = %d, want 2", got)
+	if got := countWarnings(envelopes); got != 3 {
+		t.Fatalf("countWarnings() = %d, want 3 (both warning kinds)", got)
 	}
 	if got := countWarnings(nil); got != 0 {
 		t.Fatalf("countWarnings(nil) = %d, want 0", got)

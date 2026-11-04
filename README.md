@@ -39,6 +39,17 @@ bounds, then the built-in defaults — and accepts and ignores `host_*` keys
 (the host-minted per-claim credentials this satellite never reads). Any other
 top-level key still fails closed without naming the key.
 
+Cassette replay: an activation may carry `{"cassette_file": "/path/file.json"}`
+instead of live targets. The claim replays the one recorded scope whose scope
+id matches the claim, credential-free with no cluster backend (the client
+factory seam is bypassed); any live target key beside `cassette_file` fails
+closed. Cassettes are recorded and canonicalized in-tree and only replayed
+here — one scope per claim, so an N-scope cassette needs N claims. Record
+capture is not served over the claim plane (without a cluster there is nothing
+to capture, and one stdio result carries no artifact egress), so recording
+stays in-tree. See `collector/testdata/replay-*.json` for the schema v`"1"`
+shape and `config.example.yaml` for the activation form.
+
 Config contract: every target needs a `cluster_id` (the durable scope anchor;
 `ClusterScopeID` derives the scope id from it alone) and a `source_uri` (the
 host validator requires one on every fact). A scan that cannot reach a cluster

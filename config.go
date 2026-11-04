@@ -60,6 +60,45 @@ type targetJSON struct {
 // which can be a pasted credential.
 const hostKeyPrefix = "host_"
 
+// cassetteRef is a validated cassette replay selection: the operator-owned
+// path of a pre-recorded cassette file whose one scope the claim replays.
+// Replay is credential-free and needs no cluster backend.
+type cassetteRef struct {
+	Path string
+}
+
+// decodeCassetteRef extracts the cassette replay selection from the
+// activation config. It reports false when the config carries no cassette_file
+// key and the caller must take the live path. A blank or non-string path
+// fails closed, and so does any live target key beside the cassette key:
+// replay and live targets are mutually exclusive, so a mixed config is a
+// mistake rather than a fallback order. Only the top-level limits envelope
+// and host-minted host_* keys may sit beside cassette_file.
+func decodeCassetteRef(raw map[string]any) (cassetteRef, bool, error) {
+	if raw == nil {
+		return cassetteRef{}, false, nil
+	}
+	value, ok := raw["cassette_file"]
+	if !ok {
+		return cassetteRef{}, false, nil
+	}
+	path, ok := value.(string)
+	if !ok || strings.TrimSpace(path) == "" {
+		return cassetteRef{}, false, fmt.Errorf("cassette_file must be a non-empty path")
+	}
+	for key := range raw {
+		switch key {
+		case "cassette_file", "limits":
+		default:
+			if strings.HasPrefix(key, hostKeyPrefix) {
+				continue
+			}
+			return cassetteRef{}, false, fmt.Errorf("cassette replay cannot be combined with live target keys")
+		}
+	}
+	return cassetteRef{Path: strings.TrimSpace(path)}, true, nil
+}
+
 // resolveTarget decodes the activation config and returns the cluster target
 // whose scope ID matches the claim, plus that target's limits. The config is
 // either one target object or {"targets":[...]} with the host envelope: an

@@ -1,0 +1,54 @@
+{
+  "collector": "kubernetes_live",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "kubernetes_live:replay-warn",
+      "source_system": "kubernetes_live",
+      "scope_kind": "cluster",
+      "collector_kind": "kubernetes_live",
+      "partition_key": "replay-warn",
+      "metadata": {
+        "cluster_id": "replay-warn"
+      },
+      "generation_id": "kubernetes_live:gen-replay-warn-1",
+      "observed_at": "2026-03-04T05:06:07.089Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "kubernetes_live.namespace",
+          "stable_fact_key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "replay-warn",
+            "collector_instance_id": "k8s-replay-test",
+            "namespace": "default",
+            "object_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          },
+          "source_uri": "https://api.replay-warn.example.test/cluster",
+          "source_record_id": "replay-warn:namespace:default"
+        },
+        {
+          "fact_kind": "kubernetes_live.warning",
+          "stable_fact_key": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "schema_version": "1.0.0",
+          "collector_kind": "kubernetes_live",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "cluster_id": "replay-warn",
+            "collector_instance_id": "k8s-replay-test",
+            "reason": "forbidden_resource",
+            "resource_scope": "deployments",
+            "message": "listing deployments is forbidden"
+          },
+          "source_uri": "https://api.replay-warn.example.test/cluster",
+          "source_record_id": "forbidden_resource:deployments"
+        }
+      ]
+    }
+  ]
+}
