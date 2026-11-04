@@ -57,6 +57,16 @@ func TestCassetteLoaderRejectsBadSchema(t *testing.T) {
 			`"scope_id":"s1","source_system":"kubernetes_live","scope_kind":"cluster",` +
 			`"collector_kind":"kubernetes_live","generation_id":"g1","observed_at":"2026-03-04T05:06:07.089Z",` +
 			`"facts":[{"fact_kind":"kubernetes_live.namespace","stable_fact_key":"k1","schema_version":"1.0.0"}]}]}`,
+		"missing source_uri": `{"collector":"kubernetes_live","schema_version":"1","scopes":[{` +
+			`"scope_id":"s1","source_system":"kubernetes_live","scope_kind":"cluster",` +
+			`"collector_kind":"kubernetes_live","generation_id":"g1","observed_at":"2026-03-04T05:06:07.089Z",` +
+			`"facts":[{"fact_kind":"kubernetes_live.namespace","stable_fact_key":"k1","schema_version":"1.0.0",` +
+			`"payload":{}}]}]}`,
+		"blank source_uri": `{"collector":"kubernetes_live","schema_version":"1","scopes":[{` +
+			`"scope_id":"s1","source_system":"kubernetes_live","scope_kind":"cluster",` +
+			`"collector_kind":"kubernetes_live","generation_id":"g1","observed_at":"2026-03-04T05:06:07.089Z",` +
+			`"facts":[{"fact_kind":"kubernetes_live.namespace","stable_fact_key":"k1","schema_version":"1.0.0",` +
+			`"payload":{},"source_uri":"   "}]}]}`,
 	}
 	for name, document := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -173,16 +183,17 @@ func parityClaim() sdkcollector.Claim {
 	}
 }
 
-// TestCassetteParityWithInTree proves the satellite replays a cassette the
-// same way the in-tree cassette source does: the same scope yields the same
-// ordered facts and stable keys, fact IDs re-derive deterministically from the
-// CassetteReplay identity the in-tree DeriveFactID stamps, and the wire facts
-// match the checked-in golden file byte for byte. The shared derivation is
-// the parity argument: satellite stableID resolves through the published SDK
-// identity package whose StableID body is identical to the in-tree one (pinned
-// by the parity proof test), and the File/Scope/Fact validation plus the
-// envelope mapping below are a mechanical port of in-tree format.go/source.go.
-func TestCassetteParityWithInTree(t *testing.T) {
+// TestCassetteReplayDeterminismAndGolden proves what this repo can pin about
+// cassette replay: the same scope yields the same ordered facts and stable
+// keys, fact IDs re-derive deterministically across replays, and the wire
+// facts match the checked-in golden file byte for byte. The File/Scope/Fact
+// validation plus the envelope mapping are a mechanical port of the in-tree
+// format.go/source.go at core commit 95dfc56ebb54, and the fact-ID derivation
+// resolves through the published SDK identity package whose StableID body is
+// identical to the in-tree one by code inspection: cross-system fact-ID
+// equality with the in-tree DeriveFactID is assumed, not guarded by any test
+// here, since the in-tree source is not vendored in this repo.
+func TestCassetteReplayDeterminismAndGolden(t *testing.T) {
 	t.Parallel()
 
 	file, err := LoadFile("testdata/replay-single-cluster.json")
@@ -248,5 +259,31 @@ func TestCassetteParityWithInTree(t *testing.T) {
 	}
 	if string(encoded) != string(golden) {
 		t.Fatalf("replayed facts differ from the golden file (%d vs %d bytes)", len(encoded), len(golden))
+	}
+}
+
+// TestReplayedWarningScopeIsPartial proves a scope that replays warning facts
+// maps to a partial snapshot: the cassette schema carries no partial bit, so
+// partial derives from the replayed envelopes (the live builder emits
+// warnings exactly when evidence is degraded).
+func TestReplayedWarningScopeIsPartial(t *testing.T) {
+	t.Parallel()
+
+	file, err := LoadFile("testdata/replay-warning-partial.json")
+	if err != nil {
+		t.Fatalf("LoadFile() error = %v", err)
+	}
+	snapshot, err := ReplayClaimedScope(file, "kubernetes_live:replay-warn")
+	if err != nil {
+		t.Fatalf("ReplayClaimedScope() error = %v", err)
+	}
+	if !snapshot.Partial {
+		t.Fatal("warning scope is not partial, want partial (warning facts replayed)")
+	}
+	if snapshot.Generation.FreshnessHint != "partial" {
+		t.Fatalf("FreshnessHint = %q, want partial", snapshot.Generation.FreshnessHint)
+	}
+	if len(snapshot.Envelopes) != 2 {
+		t.Fatalf("envelopes = %d, want 2", len(snapshot.Envelopes))
 	}
 }

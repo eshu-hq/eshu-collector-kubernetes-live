@@ -226,10 +226,14 @@ func checkBudgets(facts []sdk.Fact, limits ResourceUse) string {
 }
 
 // countWarnings counts warning facts in one snapshot for the partial status.
+// Both warning kinds count: mirroring collector.countWarnings keeps the
+// satellite status in agreement with the replayed snapshot, so a secrets-only
+// warning snapshot reports its warnings instead of partial-with-zero.
 func countWarnings(envelopes []corecollector.Envelope) int {
 	warnings := 0
 	for _, envelope := range envelopes {
-		if envelope.FactKind == FactKindWarning {
+		if envelope.FactKind == FactKindWarning ||
+			envelope.FactKind == FactKindSecretsIAMCoverageWarning {
 			warnings++
 		}
 	}

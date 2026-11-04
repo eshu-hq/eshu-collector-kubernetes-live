@@ -257,6 +257,13 @@ func (f Fact) validate() error {
 	if f.Payload == nil {
 		return errors.New("payload is required (use {} for an empty payload)")
 	}
+	// The host validator requires a source URI on every fact; fail fast on a
+	// blank one instead of replaying facts the host must reject. Any
+	// faithfully recorded cassette carries the operator URI the live path
+	// required at capture time.
+	if strings.TrimSpace(f.SourceURI) == "" {
+		return errors.New("source_uri is required")
+	}
 	return nil
 }
 
@@ -285,12 +292,8 @@ func replayScope(scope Scope) (CollectedSnapshot, error) {
 		Metadata:      scope.Metadata,
 	}
 	envelopes := make([]Envelope, 0, len(scope.Facts))
-	for i, fct := range scope.Facts {
-		envelope, err := replayEnvelope(scope, fct)
-		if err != nil {
-			return CollectedSnapshot{}, fmt.Errorf("scope %q fact[%d]: %w", scope.ScopeID, i, err)
-		}
-		envelopes = append(envelopes, envelope)
+	for _, fct := range scope.Facts {
+		envelopes = append(envelopes, replayEnvelope(scope, fct))
 	}
 	partial := countWarnings(envelopes) > 0
 	freshness := "complete"
@@ -314,11 +317,9 @@ func replayScope(scope Scope) (CollectedSnapshot, error) {
 	}, nil
 }
 
-func replayEnvelope(scope Scope, fct Fact) (Envelope, error) {
-	payload := fct.Payload
-	if payload == nil {
-		payload = map[string]any{}
-	}
+func replayEnvelope(scope Scope, fct Fact) Envelope {
+	// Payload is used verbatim: validate() rejects a missing payload, so a
+	// validated cassette always carries a non-nil map here.
 	return Envelope{
 		FactID:           DeriveFactID(scope.ScopeID, scope.GenerationID, fct.StableFactKey),
 		ScopeID:          scope.ScopeID,
@@ -330,7 +331,7 @@ func replayEnvelope(scope Scope, fct Fact) (Envelope, error) {
 		FencingToken:     fct.fencingToken(),
 		SourceConfidence: fct.sourceConfidence(),
 		ObservedAt:       scope.ObservedAt,
-		Payload:          payload,
+		Payload:          fct.Payload,
 		IsTombstone:      fct.IsTombstone,
 		SourceRef: Ref{
 			SourceSystem:   scope.SourceSystem,
@@ -340,5 +341,5 @@ func replayEnvelope(scope Scope, fct Fact) (Envelope, error) {
 			SourceURI:      strings.TrimSpace(fct.SourceURI),
 			SourceRecordID: fct.sourceRecordID(),
 		},
-	}, nil
+	}
 }
