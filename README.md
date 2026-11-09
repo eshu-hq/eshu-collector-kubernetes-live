@@ -1,135 +1,86 @@
 # eshu-collector-kubernetes-live
 
-Eshu Kubernetes live collector, extracted from the Eshu core repository.
+**Status: pre-release.** Eshu core still owns this data in
+production. This repo has no authority to publish facts on its own
+yet.
 
-**Pre-release. Holds no producer authority until its reviewed cutover
-(eshu-hq/eshu#8859).**
+In a nutshell: this collector reads live Kubernetes cluster
+metadata and hands Eshu evidence about workloads, namespaces,
+service accounts, and access rules in one cluster. Eshu can then
+answer what is running where and which identities those workloads
+use. The collector only collects and returns evidence; it doesn't
+store anything itself and never changes the cluster.
 
-Extraction tracking: [eshu-hq/eshu#8859](https://github.com/eshu-hq/eshu/issues/8859).
-The in-tree extraction census, producer-grant draft, and parity proofs live
-in the core repository until the cutover rehearsal lands them here.
-
-## Serving (v0.1.3)
-
-The root `collector` package (shim) serves one claim per process through the
-Eshu component-extension host process runner:
-
-```bash
-go build -o /tmp/collector ./cmd/collector
-echo "$REQUEST" | /tmp/collector --sdk-stdio   # one request in, one result out
-/tmp/collector seed --dest /component          # install binary + manifest
+```mermaid
+flowchart LR
+    K[Kubernetes API, or a cassette file] --> C[This collector]
+    C --> H[Eshu host process]
+    H --> E[Eshu core]
 ```
 
-`collector seed --dest DIR [--image-ref REF@sha256:<digest>]` writes
-`DIR/collector` (this binary, mode 0755) and `DIR/manifest.yaml` (the embedded
-manifest, mode 0644). `--image-ref`, or `COLLECTOR_IMAGE_REF` when the flag is
-absent, stamps the digest-pinned image the operator deployed into the
-manifest's artifact entry. The Dockerfile installs the binary at
-`/usr/local/bin/collector`, which is the path the IaC seed step calls:
-`ENTRYPOINT ["/usr/local/bin/collector"]`, `CMD ["--sdk-stdio"]`.
+In text: Kubernetes API (or a recorded cassette file) -> this
+collector -> Eshu host process -> Eshu core.
 
-The component-extension host forwards the activation config subtree verbatim
-as the SDK request `Config`, so a request may carry the standard host envelope
-next to the targets: `{"targets":[...], "limits":{...},
-"host_github_app_token":{...}}`. The shim maps the top-level `limits` object
-in `snake_case` or `camelCase` (`claimTimeoutSeconds`, `maxPayloadBytes`,
-`maxRecordsPerClaim`, `maxResultBytes`) onto the claim budgets — a target's
-own bounds win where set, the envelope fills the gaps, then the handler
-bounds, then the built-in defaults — and accepts and ignores `host_*` keys
-(the host-minted per-claim credentials this satellite never reads). Any other
-top-level key still fails closed without naming the key.
+## When to use it
 
-Cassette replay: an activation may carry `{"cassette_file": "/path/file.json"}`
-instead of live targets. The claim replays the one recorded scope whose scope
-id matches the claim, credential-free with no cluster backend (the client
-factory seam is bypassed); any live target key beside `cassette_file` fails
-closed. Cassettes are recorded and canonicalized in-tree and only replayed
-here — one scope per claim, so an N-scope cassette needs N claims. Record
-capture is not served over the claim plane (without a cluster there is nothing
-to capture, and one stdio result carries no artifact egress), so recording
-stays in-tree. See `collector/testdata/replay-*.json` for the schema v`"1"`
-shape and `config.example.yaml` for the activation form.
+Use it when Eshu needs current evidence about one Kubernetes
+cluster: workloads and their pod shapes, namespaces, service
+accounts, RBAC roles and bindings, and cloud identity links such
+as EKS IRSA, EKS Pod Identity, and GKE Workload Identity.
 
-Config contract: every target needs a `cluster_id` (the durable scope anchor;
-`ClusterScopeID` derives the scope id from it alone) and a `source_uri` (the
-host validator requires one on every fact). A scan that cannot reach a cluster
-reports retryable `collection_failed`, never `invalid_config`: reaching that
-class proves the envelope decoded and the scope matched. The v0.1.3 image
-ships the live cluster backend (`collector/clientgo` behind the
-`ClientFactory` seam): the in-cluster service account when the pod runs under
-it, an explicit `KUBECONFIG` file for out-of-cluster collection, and a bounded
-retryable error when neither exists. A `nil` factory still reports terminal
-`collection_failed` so a missing backend stays explicit, never a silent empty
-result — the binary always wires `clientgo.DefaultFactory`, so only a
-directly built `Handler` can hit that shape. Cluster auth resolves from the
-process environment alone; no secret travels in the activation config.
+## When not to use it
 
-`manifest.yaml` (`metadata.version: 0.1.3`) declares all 13 emitted kinds
-with their schema versions and the placeholder artifact digest; deployments
-stamp the pulled digest with `collector seed --image-ref`. `config.example.yaml`
-is the cutover-shaped activation; `grant.example.json` is the producer-grant
-request an operator submits (one grant per declared kind, bound to this
-producer and version). Releasing: push a `v*` tag matching
-`manifest.yaml metadata.version` on the protected `main` head and
-`.github/workflows/release.yml` builds, signs, and attests the image. A tag on
-any other commit fails before anything is built or pushed.
+- Don't use it to change a cluster. It only lists objects.
+- Don't use it to read Secret or ConfigMap contents.
+  Those payloads are excluded by design.
+- Don't use one activation for many clusters.
+  One target covers one cluster; a claim whose scope matches no
+  target is rejected instead of scanning the wrong cluster.
+- Don't use cassette replay to prove live access.
+  Replay needs no credentials and proves only the recorded shape.
 
-## Extracted-path proof (`collector/`)
+## How Eshu runs it
 
-This branch ports the in-tree emission core onto the published SDK contracts
-and proves byte-exact emission against the fixture pack the in-tree parity pin
-was cut from (`collector/testdata/8859-parity-kubernetes-live.json`, copied
-verbatim from core):
+The host runs one claim per process invocation.
+With no arguments (or `--sdk-stdio`) the binary reads one
+`collector-sdk/v1alpha1` request from stdin and writes one result
+to stdout. The host owns claims and commits; this binary never
+commits facts itself.
 
-```go
-require (
-	github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4
-	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7
-)
-```
+## Documentation
 
-No `replace` directives, no core imports. Run the proof (`make ci` is the
-local contract: lint, test, and race with the coverage floor):
+Start at the [docs index](docs/README.md). Shortcuts people use most:
 
-```bash
-make ci
-```
+| Page | What you'll find there |
+|---|---|
+| [Getting started](docs/getting-started/README.md) | Run it once, see facts come back |
+| [Configuration](docs/reference/configuration.md) | Every config field, credentials, and the claim budget |
+| [Facts](docs/reference/facts.md) | The fact kinds it emits, mirroring the manifest |
+| [Diagrams](docs/diagrams/README.md) | Every diagram, with captions and text versions |
 
-What is proven: scope/kind/stable-key/attribute/payload parity per scope,
-duplicate-delivery stability, hostile inputs (partial freshness, in-band
-warnings, URI sanitization), the SDK Result boundary (state mapping, 1:1 fact
-mapping, fencing round-trip, credential-free wire URIs), full-harness
-conformance for `kubernetes_live.*` facts including `pod_template`
-(`TestExtractedPayloadsPassConformance`, with the pack-schema shape check
-alongside), full-harness conformance for the
-three declared kinds the fixture pack does not span (`k8s_rbac_role`,
-`k8s_rbac_binding`, `eks_pod_identity_association`, via synthetic fixtures),
-pack-schema conformance for all 13 emitted kinds, and ported unit tests with
-verbatim in-tree expectations for the paths the fixture pack cannot carry
-(RBAC, ingress edges, pool gating, canaries).
+## Related repos
 
-What stays open for cutover (not this proof): claim-driven collection (mapped,
-not pinned), grant enforcement (fails closed per the grant draft),
-per-target `source_uri`
-configuration (the SDK requires a non-empty wire URI), the posture SourceURI
-shared-seam fix (owned by the secrets-IAM lane; the boundary sanitizes),
-the SDK payload-key allowlist handoff below, release artifact, and rehearsed
-rollback.
+- [eshu](https://github.com/eshu-hq/eshu), Eshu core
+- [eshu-sdk](https://github.com/eshu-hq/eshu-sdk), collector and fact-schema contracts
+- [eshu-deploy](https://github.com/eshu-hq/eshu-deploy), deployment charts and activations
 
-SDK handoff: the published collector's fail-closed payload-key heuristic
-rejects legacy field names that are provably not credentials. For posture:
-`secret_ref_count`, `image_pull_secret_ref_count`, `automount_token`,
-`projected_service_account_token` (integer counts and closed-enum strings
-the cutover contract pins byte-exact). For `kubernetes_live.pod_template`:
-`containers.env_from_secret`, a boolean that records only whether a
-container references secret-backed env (`collector/envelope.go`
-`ContainerSummary.EnvFromSecret`) and never carries a value. Renaming either
-set would break the byte-pinned cutover contract, so the fix belongs to the
-SDK. Tracked on
-[eshu-hq/eshu#8851](https://github.com/eshu-hq/eshu/issues/8851) as a
-`redactionSafePayloadKeys` allowlist request; the posture half of the proof
-runs schema-only until the SDK release carries it. Collector rc.4 carries the
-`env_from_secret` allowlist ([SDK PR eshu-hq/eshu-sdk#28](https://github.com/eshu-hq/eshu-sdk/pull/28),
-issue eshu-hq/eshu-sdk#26), so `pod_template` now runs in the full harness
-(`TestExtractedPayloadsPassConformance`) with the pack-schema shape check
-(`TestExtractedPodTemplatePayloadsMatchPackSchemas`) alongside.
+
+Exact `go.mod` pins: `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4` and
+`github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7`. Proof carried by the
+test suite includes full-harness conformance for `kubernetes_live.*` facts
+including `pod_template` (`TestExtractedPayloadsPassConformance`),
+pack-schema conformance for all 13 emitted kinds, and synthetic-fixture
+conformance for `k8s_rbac_role`, `k8s_rbac_binding`, and
+`eks_pod_identity_association`. In a pod template,
+`containers.env_from_secret` is only a yes/no flag that a container
+references secret-backed environment; it never carries a value.
+
+## Development
+
+Run `make ci` to check a change the way CI does.
+
+## Contributing, security, and license
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change.
+There's no `SECURITY.md` in this repo.
+Licensed under MIT; see [LICENSE](LICENSE).
