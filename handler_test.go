@@ -5,6 +5,7 @@ package collector
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -163,7 +164,7 @@ func TestHandleServesAClaimComplete(t *testing.T) {
 	if result.State != sdk.ResultComplete {
 		t.Fatalf("State = %q, want complete", result.State)
 	}
-	if result.Claim != claim {
+	if !reflect.DeepEqual(result.Claim, claim) {
 		t.Fatalf("Claim was not echoed: %+v", result.Claim)
 	}
 	if len(result.Facts) != 1 {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -117,7 +118,7 @@ func TestRunClaimProvesConfigAcceptanceWithoutACluster(t *testing.T) {
 		if len(result.Facts) != 0 {
 			t.Fatal("failed result carries facts")
 		}
-		if roundTripped := roundTripClaim(t, claim); result.Claim != roundTripped {
+		if roundTripped := roundTripClaim(t, claim); !reflect.DeepEqual(result.Claim, roundTripped) {
 			t.Fatalf("Claim was not echoed: %+v", result.Claim)
 		}
 		// The binary logs exactly one bounded diagnostic line per claim.
