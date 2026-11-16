@@ -65,8 +65,8 @@ Start at the [docs index](docs/README.md). Shortcuts people use most:
 - [eshu-deploy](https://github.com/eshu-hq/eshu-deploy), deployment charts and activations
 
 
-Exact `go.mod` pins: `github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.4` and
-`github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.7`. Proof carried by the
+Exact `go.mod` pins: `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4` and
+`github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19`. Proof carried by the
 test suite includes full-harness conformance for `kubernetes_live.*` facts
 including `pod_template` (`TestExtractedPayloadsPassConformance`),
 pack-schema conformance for all 13 emitted kinds, and synthetic-fixture
